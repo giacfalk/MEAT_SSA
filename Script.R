@@ -1,14 +1,20 @@
 ######MEATSSA###########
-#A simple model for projecting meat consumption scenarios
+#A model for projecting meat consumption scenarios
 #and related environmental impact in Sub-Saharan Africa#
 ########################
-
-### Version: 11/03/19 ###
+##Giacomo Falchetta, Michel Noussan
+#Any question should be addressed to giacomo.falchetta@feem.it
+### Version: 06/05/19 ###
 
 #Load required libraries
 library(ggplot2)
 library(dplyr)
+library(lmtest)
+library(systemfit)
+library(raster)
+library(texreg)
 library(countrycode)
+library(wbstats)
 library(reshape2)
 library(padr)
 library(cowplot)
@@ -17,8 +23,18 @@ library(imputeTS)
 library(tidyr)
 
 #Set wd depending on which computer you are working
-setwd("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\Data")
-setwd("D:\Dropbox (FEEM)\Meat Africa\Data\\Meat Africa\\Data")
+setwd("D:\\Dropbox (FEEM)\\Meat Africa\\Repo\\meatSSA\\Data")
+
+###############
+##Index##
+###############
+#1) Descriptive statistics and graphs
+#2) Regress GDP and meat consumption (demand-side) to derive coefficients for scenario projection
+#3) Design scenarios projecting the SSPs
+#4) Create combined plots for selected scenarios
+#5) Calculate environmental impact
+##############
+
 
 #################
 #1) Produce some descriptive statistics and graphs
@@ -32,12 +48,12 @@ pc_cons_regional$Entity[pc_cons_regional$Entity == "Australia & New Zealand"] <-
 
 fig1a = ggplot(pc_cons_regional, aes(x=Year, y=Meat.consumption.per.capita..kilograms.per.year., colour=Entity, group=Entity)) + 
   geom_line(size=1)+
-  ylab("Meat consumption in kg/capita/year")+
+  ylab("Total meat consumption \n (kg/capita/year)")+
   labs(color = "Regions\n")+
   scale_fill_brewer(palette="Set1")+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
-#ggsave("figure1a.png", plot = fig1a, device = "png", width = 20, height = 15, units = "cm", scale=0.6)
+ggsave("figure1a.pdf", plot = fig1a, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 pc_cons_bytipe<-read.csv("per-capita-meat-consumption-by-type-kilograms-per-year.csv")
 
@@ -48,32 +64,32 @@ pc_cons_bytipe_regional$Entity[pc_cons_bytipe_regional$Entity == "Australia & Ne
 
 a<-ggplot(pc_cons_bytipe_regional, aes(x=Year, colour=Entity))+
 geom_line(aes(y=Beef.and.buffalo..kg.), size=1) + 
-ylab("Beef and buffalo, kg/capita/year")+
+ylab("Beef and buffalo \n (kg/capita/year)")+
 scale_color_discrete(name="Region")+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 
 b<-ggplot(pc_cons_bytipe_regional, aes(x=Year, colour=Entity))+
   geom_line(aes(y=Poultry..kg.), size=1) + 
-  ylab("Poultry, kg/capita/year")+
+  ylab("Poultry \n (kg/capita/year)")+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 
 c<-ggplot(pc_cons_bytipe_regional, aes(x=Year, colour=Entity))+
   geom_line(aes(y=Pigmeat..kg.), size=1) + 
-  ylab("Pork, kg/capita/year")+
+  ylab("Pork \n (kg/capita/year)")+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 
 d<-ggplot(pc_cons_bytipe_regional, aes(x=Year, colour=Entity))+
   geom_line(aes(y=Mutton...goat..kg.), size=1) + 
-  ylab("Mutton and goat, kg/capita/year")+
+  ylab("Mutton and goat \n (kg/capita/year)")+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 combo_type<-plot_grid((a+theme(legend.position="none")), (b+theme(legend.position="none")), (c+theme(legend.position="none")), (d+theme(legend.position="none")), labels = "AUTO", label_size = 9, hjust= 0)
 legend <- get_legend(a)
 p <- plot_grid(combo_type, legend, ncol = 2, rel_widths = c(0.6, .2))
-#ggsave("combo_type.png", plot = p, device = "png", width = 26, height = 18, units = "cm", scale=0.7)
+ggsave("combo_type.pdf", plot = p, device = "pdf", width = 26, height = 18, units = "cm", scale=0.7)
 
 pc_cons_bytipe_regional2 = pc_cons_bytipe_regional %>% dplyr::select(-Code)
 pc_cons_bytipe_regional2 = melt(pc_cons_bytipe_regional2, id.vars=c("Entity", "Year"), measure.vars= c("Mutton...goat..kg.", "Beef.and.buffalo..kg.", "Pigmeat..kg.", "Poultry..kg."))
@@ -86,7 +102,7 @@ a = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 196
   ggtitle("1961")+
   xlab("Region")+
   ylab("Share of consumption (%)")+
-  scale_fill_discrete(name="Meat Type", labels=c("Mutton", "Beef and buffalo", "Pigmeat", "Poultry"))+
+  scale_fill_discrete(name="Meat Type", labels=c("Mutton and goat", "Beef and buffalo", "Pigmeat", "Poultry"))+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 b = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 1980),aes(x = Entity, y = value ,fill = variable)) + 
@@ -97,7 +113,7 @@ b = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 198
   ggtitle("1980")+
   xlab("Region")+
   ylab("Share of consumption (%)")+
-  scale_fill_discrete(name="Meat Type", labels=c("Mutton", "Beef and buffalo", "Pigmeat", "Poultry"))+
+  scale_fill_discrete(name="Meat Type", labels=c("Mutton and goat", "Beef and buffalo", "Pigmeat", "Poultry"))+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 c = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 2000),aes(x = Entity, y = value ,fill = variable)) + 
@@ -108,7 +124,7 @@ c = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 200
   ggtitle("2000")+
   xlab("Region")+
   ylab("Share of consumption (%)")+
-  scale_fill_discrete(name="Meat Type", labels=c("Mutton", "Beef and buffalo", "Pigmeat", "Poultry"))+
+  scale_fill_discrete(name="Meat Type", labels=c("Mutton and goat", "Beef and buffalo", "Pigmeat", "Poultry"))+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
 d = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 2013),aes(x = Entity, y = value ,fill = variable)) + 
@@ -119,23 +135,22 @@ d = ggplot(subset(pc_cons_bytipe_regional2, pc_cons_bytipe_regional2$Year == 201
   ggtitle("2013")+
   xlab("Region")+
   ylab("Share of consumption (%)")+
-  scale_fill_discrete(name="Meat Type", labels=c("Mutton", "Beef and buffalo", "Pigmeat", "Poultry"))+
+  scale_fill_discrete(name="Meat Type", labels=c("Mutton and goat", "Beef and buffalo", "Pigmeat", "Poultry"))+
   theme(text = element_text(size = 10), axis.text.x = element_text(size=10), axis.text.y = element_text(size=10))
 
-library(cowplot)
 combo_type<-plot_grid((a+theme(legend.position="none")), (b+theme(legend.position="none")), (c+theme(legend.position="none")), (d+theme(legend.position="none")))
 legend <- get_legend(a)
-fig1b <- plot_grid(combo_type, legend)
+fig1b <- plot_grid(combo_type, legend, ncol = 2, rel_widths = c(0.6, .1))
 
-#ggsave("figure1b.png", plot = fig1b, device = "png", width = 40, height = 18, units = "cm", scale=0.9)
+ggsave("figure1b.pdf", plot = fig1b, device = "pdf", width = 26, height = 18, units = "cm", scale=0.9)
 
 #Further examplificative plots
 pc_gdp_pc<-read.csv("meat-consumption-vs-gdp-per-capita.csv")
-pc_gdp_pc_regional<-subset(pc_gdp_pc, Entity== "China" | Entity== "India"| Entity== "Germany"| Entity== "Italy"| Entity== "Australia"| Entity== "United States")
+pc_gdp_pc_regional<-subset(pc_gdp_pc, Entity== "China" | Entity== "India"| Entity== "France"| Entity== "Italy"| Entity== "South Africa"| Entity== "Japan")
 pc_gdp_pc_regional<-subset(pc_gdp_pc_regional, Year > 1900)
 
 #Trends in dplyr::selected countries of the world
-world<-ggplot(pc_gdp_pc_regional, aes(x=cgdppc, y=Meat.consumption.per.capita..kilograms.per.year., colour=Entity)) + 
+world<-ggplot(pc_gdp_pc_regional, aes(x=GDP.per.capita..constant.2011.international..., y=Meat.consumption.per.capita..kilograms.per.year., colour=Entity)) + 
   geom_point(size=1)+
   stat_smooth(se=TRUE, fill=NA,colour="red")+
   ylab("Meat consumption: kg/capita/year")+
@@ -160,7 +175,7 @@ africa<-ggplot(pc_gdp_pc_regional_Africa, aes(x=cgdppc, y=Meat.consumption.per.c
   theme(legend.position="bottom", axis.text=element_text(size=8))
 
 #1.2. Figures on meat-industry emissions
-setwd("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\Data")
+setwd("Data")
 
 GHG<-readxl::read_excel("Total_livestock_emissions_GLEAM_2017.xlsx")
 
@@ -169,34 +184,34 @@ GHG_plot = ggplot(data=GHG, aes(x=Region, y=MilliontonnesCO2eq/1000)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size=10))+
   ylab(expression("Gigatons " *"CO"["2"]^{"equiv"}))
 
-#ggsave("figureghg.png", plot = GHG_plot, device = "png", width = 25, height = 18, units = "cm", scale=0.75)
+ggsave("figureghg.pdf", plot = GHG_plot, device = "pdf", width = 25, height = 18, units = "cm", scale=0.75)
 
 #1.3 Figures on historical land-use change
 #sr <- "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs" 
-lc_1700 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1700.asc")
-#proj4string(lc_1700) <- CRS("+init=epsg:4326") 
-#lc_1700 <- projectRaster(lc_1700, crs = sr)
+lc_1700 = raster("Data/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1700.asc")
+proj4string(lc_1700) <- CRS("+init=epsg:4326") 
+lc_1700 <- projectRaster(lc_1700, crs = sr)
 lc_1700 = as.data.frame(tapply(area(lc_1700), lc_1700[], sum), colnames="1700")
 
-lc_1750 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1750.asc")
+lc_1750 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1750.asc")
 lc_1750 = as.data.frame(tapply(area(lc_1750), lc_1750[], sum), colnames="1750")
 
-lc_1800 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1800.asc")
+lc_1800 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1800.asc")
 lc_1800 = as.data.frame(tapply(area(lc_1800), lc_1800[], sum), colnames="1800")
 
-lc_1850 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1850.asc")
+lc_1850 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1850.asc")
 lc_1850 = as.data.frame(tapply(area(lc_1850), lc_1850[], sum), colnames="1850")
 
-lc_1900 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1900.asc")
+lc_1900 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1900.asc")
 lc_1900 = as.data.frame(tapply(area(lc_1900), lc_1900[], sum), colnames="1900")
 
-lc_1950 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1950.asc")
+lc_1950 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1950.asc")
 lc_1950 = as.data.frame(tapply(area(lc_1950), lc_1950[], sum), colnames="1950")
 
-lc_1970 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1970.asc")
+lc_1970 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1970.asc")
 lc_1970 = as.data.frame(tapply(area(lc_1970), lc_1970[], sum), colnames="1970")
 
-lc_1990 = raster("C:/Users/Falchetta/Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1990.asc")
+lc_1990 = raster("D:\\Dropbox (FEEM)/Meat Africa/Data/historical landcover change/ISLSCP_II_HLANDCOVER_967/data/historic_landcover_hdeg/historic_landcover_hd_1990.asc")
 lc_1990 = as.data.frame(tapply(area(lc_1990), lc_1990[], sum), colnames="1990")
 
 lc = cbind(lc_1700, lc_1750, lc_1800, lc_1850, lc_1900, lc_1950, lc_1970, lc_1990)
@@ -215,19 +230,16 @@ landusechangeplot = ggplot(lc, aes(x=year, y=area, group=landtype, colour=landty
   ylab("Area (km2)")+
   scale_colour_discrete(name="Legend")
   
-#ggsave("figureluc.png", plot = landusechangeplot, device = "png", width = 25, height = 18, units = "cm", scale=0.75)
+ggsave("figureluc.pdf", plot = landusechangeplot, device = "pdf", width = 25, height = 18, units = "cm", scale=0.75)
 
-##2) Regress GDP and meat consumption (demand-side) to derive coefficients for scenario projection
-library(dplyr)
-library(countrycode)
-
-pc_cons<-read.csv("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\Data\\meat-consumption-vs-gdp-per-capita.csv")
-maddison = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\Data\\Maddison_historical.xlsx")
+#2) Regress GDP and meat consumption (demand-side) to derive coefficients for scenario projection
+pc_cons<-read.csv("meat-consumption-vs-gdp-per-capita.csv")
+maddison = readxl::read_excel("Maddison_historical.xlsx")
 pc_cons = merge(pc_cons, maddison, by=c("Code", "Year"))
 pc_cons = pc_cons[!nchar(as.character(pc_cons$Code)) > 3, ]
 pc_cons = pc_cons %>% dplyr::select(Code, Year, Meat.consumption.per.capita..kilograms.per.year., cgdppc)
 pc_cons$Code=as.character(pc_cons$Code)
-pc_cons_bytipe<-read.csv("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\Data\\per-capita-meat-consumption-by-type-kilograms-per-year.csv")
+pc_cons_bytipe<-read.csv("per-capita-meat-consumption-by-type-kilograms-per-year.csv")
 pc_cons_bytipe = pc_cons_bytipe %>% dplyr::select(-Entity)
 pc_cons_bytipe$Code=as.character(pc_cons_bytipe$Code)
 
@@ -241,35 +253,6 @@ state_dict = read.csv(url, stringsAsFactors=FALSE)
 y$continent=countrycode(y$Code, 'iso3c', 'gbd_region', custom_dict=state_dict, origin_regex=TRUE)
 y$macrocontinent=countrycode(y$Code, 'iso3c', 'continent')
 
-####
-#Specify region to regress on
-
-region_regression="High-income North America"
-
-#Beef 
-global = subset(y, y$continent == region_regression)
-formula = "Beef.and.buffalo..kg. ~ cgdppc + I(cgdppc^2) + factor(Code) + factor(Year) + Poultry..kg.*Pigmeat..kg. +  Mutton...goat..kg.*Pigmeat..kg. + Mutton...goat..kg.*Poultry..kg. +0"
-global = lm(formula, data = global)
-summary(global)
-
-#Pig
-global = subset(y, y$continent == region_regression)
-formula = "Pigmeat..kg. ~ cgdppc + I(cgdppc^2) + factor(Code) + factor(Year) + Poultry..kg.*Beef.and.buffalo..kg. +  Mutton...goat..kg.*Beef.and.buffalo..kg. + Mutton...goat..kg.*Poultry..kg. +0"
-global = lm(formula, data = global)
-summary(global)
-
-#Poultry
-global = subset(y, y$continent == region_regression)
-formula = "Poultry..kg. ~ cgdppc + I(cgdppc^2) + factor(Code) + factor(Year) + Pigmeat..kg.*Beef.and.buffalo..kg. +  Mutton...goat..kg.*Beef.and.buffalo..kg. + Mutton...goat..kg.*Pigmeat..kg. +0"
-global = lm(formula, data = global)
-summary(global)
-
-#Mutton-goat
-global = subset(y, y$continent == region_regression)
-formula = "Mutton...goat..kg. ~ cgdppc + I(cgdppc^2) + factor(Code) + factor(Year) + Poultry..kg.*Beef.and.buffalo..kg. +  Pigmeat..kg.*Beef.and.buffalo..kg. + Pigmeat..kg.*Poultry..kg. +0"
-global = lm(formula, data = global)
-summary(global)
-
 #Produce figure of quadratic trends for all types of meat
 require(scales)
 histev<-ggplot(y, aes(x=cgdppc, y=Meat.consumption.per.capita..kilograms.per.year., colour=macrocontinent)) + 
@@ -281,26 +264,185 @@ histev<-ggplot(y, aes(x=cgdppc, y=Meat.consumption.per.capita..kilograms.per.yea
   ylab("Meat consumption: kg/capita/year")+
   xlab("PPP per-capita GDP")
 
-#ggsave("histev.png", plot = histev, device = "png", width = 18, height = 12, units = "cm", scale=0.9)
+ggsave("histev.pdf", plot = histev, device = "pdf", width = 18, height = 12, units = "cm", scale=0.9)
+
+####
+shift<-function(x,shift_by){
+  stopifnot(is.numeric(shift_by))
+  stopifnot(is.numeric(x))
+  
+  if (length(shift_by)>1)
+    return(sapply(shift_by,shift, x=x))
+  
+  out<-NULL
+  abs_shift_by=abs(shift_by)
+  if (shift_by > 0 )
+    out<-c(tail(x,-abs_shift_by),rep(NA,abs_shift_by))
+  else if (shift_by < 0 )
+    out<-c(rep(NA,abs_shift_by), head(x,-abs_shift_by))
+  else
+    out<-x
+  out
+}
+
+#Specify country to regress on
+
+region_regression="CHN"
+
+y = y %>% group_by(Year) %>% mutate(globcons_Pigmeat..kg.=mean(Pigmeat..kg., na.rm=TRUE)) %>% ungroup()
+y = y %>% group_by(Year) %>% mutate(globcons_Poultry..kg.=mean(Poultry..kg., na.rm=TRUE)) %>% ungroup()
+y = y %>% group_by(Year) %>% mutate(globcons_Mutton...goat..kg.=mean(Mutton...goat..kg., na.rm=TRUE)) %>% ungroup()
+y = y %>% group_by(Year) %>% mutate(globcons_Beef.and.buffalo..kg.=mean(Beef.and.buffalo..kg., na.rm=TRUE)) %>% ungroup()
+
+global = subset(y, y$Code == region_regression)
+
+global$Pigmeat..kg._1 <- shift(global$Pigmeat..kg., -5)
+global$Pigmeat..kg._delta = global$Pigmeat..kg. - global$Pigmeat..kg._1
+
+global$Poultry..kg._1 <- shift(global$Poultry..kg., -5)
+global$Poultry..kg._delta = global$Poultry..kg. - global$Poultry..kg._1
+
+global$Mutton...goat..kg._1 <- shift(global$Mutton...goat..kg., -5)
+global$Mutton...goat..kg._delta = global$Mutton...goat..kg. - global$Mutton...goat..kg._1
+
+global$Beef.and.buffalo..kg._1 <- shift(global$Beef.and.buffalo..kg., -5)
+global$Beef.and.buffalo..kg._delta = global$Beef.and.buffalo..kg. - global$Beef.and.buffalo..kg._1
+
+#Beef 
+formula1 = Beef.and.buffalo..kg. ~ cgdppc + I(cgdppc^2) + Pigmeat..kg._delta + Mutton...goat..kg._delta + Poultry..kg._delta + globcons_Beef.and.buffalo..kg.
+results = lm(formula1, data = global)
+summary(results)
+
+grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
+grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
+
+#Pig
+formula2 = Pigmeat..kg. ~ cgdppc + I(cgdppc^2) + Mutton...goat..kg._delta + Poultry..kg._delta + Beef.and.buffalo..kg._delta + globcons_Pigmeat..kg.
+results = lm(formula2, data = global)
+summary(results)
+
+grangertest(global$cgdppc, global$Pigmeat..kg., order = 5)
+grangertest(global$Pigmeat..kg., global$cgdppc, order = 5)
+
+#Poultry
+formula3 = Poultry..kg. ~ cgdppc + I(cgdppc^2)  + Mutton...goat..kg._delta + Pigmeat..kg._delta + Beef.and.buffalo..kg._delta + globcons_Poultry..kg.
+results = lm(formula3, data = global)
+summary(results)
+
+grangertest(x=global$cgdppc, y=global$Poultry..kg., order = 5)
+grangertest(x=global$Poultry..kg., y=global$cgdppc, order = 5)
+
+#Mutton-goat
+formula4 = Mutton...goat..kg. ~ cgdppc + I(cgdppc^2) + Poultry..kg._delta + Pigmeat..kg._delta + Beef.and.buffalo..kg._delta + globcons_Mutton...goat..kg.
+results = lm(formula4, data = global)
+summary(results)
+
+grangertest(global$cgdppc, global$Mutton...goat..kg., order = 5)
+grangertest(global$Mutton...goat..kg., global$cgdppc, order = 5)
+
+
+
+formula = list(formula1, formula2, formula3, formula4)
+summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+
+chres <- systemfit(formula, method = "SUR", data=global, maxiter=500)
+
+texreg(list(chres))
+
+##
+
+region_regression="BRA"
+
+global = subset(y, y$Code == region_regression)
+
+global$Pigmeat..kg._1 <- shift(global$Pigmeat..kg., -5)
+global$Pigmeat..kg._delta = global$Pigmeat..kg. - global$Pigmeat..kg._1
+
+global$Poultry..kg._1 <- shift(global$Poultry..kg., -5)
+global$Poultry..kg._delta = global$Poultry..kg. - global$Poultry..kg._1
+
+global$Mutton...goat..kg._1 <- shift(global$Mutton...goat..kg., -5)
+global$Mutton...goat..kg._delta = global$Mutton...goat..kg. - global$Mutton...goat..kg._1
+
+global$Beef.and.buffalo..kg._1 <- shift(global$Beef.and.buffalo..kg., -5)
+global$Beef.and.buffalo..kg._delta = global$Beef.and.buffalo..kg. - global$Beef.and.buffalo..kg._1
+
+grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
+grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
+
+formula = list(formula1, formula2, formula3, formula4)
+summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+
+###
+    
+region_regression="VNM"
+
+global = subset(y, y$Code == region_regression)
+
+global$Pigmeat..kg._1 <- shift(global$Pigmeat..kg., -5)
+global$Pigmeat..kg._delta = global$Pigmeat..kg. - global$Pigmeat..kg._1
+
+global$Poultry..kg._1 <- shift(global$Poultry..kg., -5)
+global$Poultry..kg._delta = global$Poultry..kg. - global$Poultry..kg._1
+
+global$Mutton...goat..kg._1 <- shift(global$Mutton...goat..kg., -5)
+global$Mutton...goat..kg._delta = global$Mutton...goat..kg. - global$Mutton...goat..kg._1
+
+global$Beef.and.buffalo..kg._1 <- shift(global$Beef.and.buffalo..kg., -5)
+global$Beef.and.buffalo..kg._delta = global$Beef.and.buffalo..kg. - global$Beef.and.buffalo..kg._1
+
+grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
+grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
+
+formula = list(formula1, formula2, formula3, formula4)
+summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+
+
+###
+
+
+meat_prod_tonnes<-read.csv("meat-production-tonnes.csv")
+meat_prod_tonnes = merge(meat_prod_tonnes, y, by=c("Code", "Year"))
+pop = wb(indicator = "SP.POP.TOTL", startdate = 1961, enddate = 2013)
+meat_prod_tonnes = merge(meat_prod_tonnes, pop, by.x=c("Code", "Year"), by.y=c("iso3c", "date"))
+meat_prod_tonnes$prodpc=meat_prod_tonnes$Livestock.Primary..Meat..Total...Production...tonnes..FAO..2017....tonnes. / meat_prod_tonnes$value
+meat_prod_tonnes = subset(meat_prod_tonnes, meat_prod_tonnes$Code =="CHN")
+
+cor(meat_prod_tonnes$prodpc, meat_prod_tonnes$Meat.consumption.per.capita..kilograms.per.year.)
+
+grangertest(meat_prod_tonnes$cgdppc, meat_prod_tonnes$prodpc, order = 5)
+grangertest(meat_prod_tonnes$prodpc, meat_prod_tonnes$cgdppc, order = 5)
+
+##
+
+meat_prod_tonnes<-read.csv("meat-production-tonnes.csv")
+meat_prod_tonnes = merge(meat_prod_tonnes, y, by=c("Code", "Year"))
+pop = wb(indicator = "SP.POP.TOTL", startdate = 1961, enddate = 2013)
+meat_prod_tonnes = merge(meat_prod_tonnes, pop, by.x=c("Code", "Year"), by.y=c("iso3c", "date"))
+meat_prod_tonnes$prodpc=meat_prod_tonnes$Livestock.Primary..Meat..Total...Production...tonnes..FAO..2017....tonnes. / meat_prod_tonnes$value
+meat_prod_tonnes = subset(meat_prod_tonnes, meat_prod_tonnes$Code =="BRA")
+
+cor(meat_prod_tonnes$prodpc, meat_prod_tonnes$Meat.consumption.per.capita..kilograms.per.year.)
+
+grangertest(meat_prod_tonnes$cgdppc, meat_prod_tonnes$prodpc, order = 6)
+grangertest(meat_prod_tonnes$prodpc, meat_prod_tonnes$cgdppc, order = 6)
 
 
 #################
 #3) Design scenarios projecting the SSPs
-#import the SSPs
-ssps = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db.xlsx")
-ssps_countrylevel = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_countrylevel.xlsx")
+#3.1 import the SSPs
+ssps = readxl::read_excel("iamc_db.xlsx")
+ssps_countrylevel = readxl::read_excel("iamc_db_countrylevel.xlsx")
 ssps_countrylevel = ssps_countrylevel %>% mutate_if(is.numeric, funs(.*1000))
 
-
-#adjust unit of dollars (from 2005 to 2011 PPP per-capita GDP)
-library(wbstats)
+#3.2 adjust unit of dollars (from 2005 to 2011 PPP per-capita GDP)
 adjfactor = wb(indicator = "PA.NUS.PPP", startdate = 2005, enddate = 2011)
 adjfactor = adjfactor %>% dplyr::select(iso3c, date, value)
 adjfactor = adjfactor %>% subset(date == 2011 | date == 2005) %>% group_by(iso3c) %>% summarise(value= value[1]/value[2])  
 ssps_countrylevel = merge(ssps_countrylevel, adjfactor, by.x="Region", by.y="iso3c")
 ssps_countrylevel = ssps_countrylevel %>% mutate_if(is.numeric, funs(.*value))
 
-##
+##3.3 reshape, merge, add continents
 ssps_countrylevel$continent=countrycode(ssps_countrylevel$Region, 'iso3c', 'continent')
 ssps_countrylevel = ssps_countrylevel[complete.cases(ssps_countrylevel[ , 26]),]
 ssps_countrylevel = subset(ssps_countrylevel, ssps_countrylevel$continent == "Africa")
@@ -309,36 +451,54 @@ pr = ssps_countrylevel %>% dplyr::select(-c(Model, Variable, Unit, Notes, contin
 ssps_countrylevel = melt(pr, id.vars=c("Region", "Scenario"))
 ssps_countrylevel <- split(ssps_countrylevel, ssps_countrylevel$Scenario)
 
-#Define the intercept terms, which is given by today's average level of consumption
+
+#3.4 Define the intercept terms for each type of meat, which is given by today's average level of consumption
+#Drop MENA and South Africa
 #Beef
-africa = subset(y, y$continent =="Western Sub-Saharan Africa")
-africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP")
+africa = subset(y, y$macrocontinent =="Africa")
+africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP" & Code != "ZAF")
 subset(africa, africa$Year==2013) %>% dplyr::summarise(median=median(Beef.and.buffalo..kg., na.rm = TRUE))
 
 #Pork
-africa = subset(y, y$continent =="Western Sub-Saharan Africa")
-africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP")
+africa = subset(y, y$macrocontinent =="Africa")
+africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP" & Code != "ZAF")
 subset(africa, africa$Year==2013) %>% dplyr::summarise(median=median(Pigmeat..kg., na.rm = TRUE))
 
 #Poultry
-africa = subset(y, y$continent =="Western Sub-Saharan Africa")
-africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP")
+africa = subset(y, y$macrocontinent =="Africa")
+africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP" & Code != "ZAF")
 subset(africa, africa$Year==2013) %>% dplyr::summarise(median=median(Poultry..kg., na.rm = TRUE))
 
 #Mutton
-africa = subset(y, y$continent =="Western Sub-Saharan Africa")
-africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP")
+africa = subset(y, y$macrocontinent =="Africa")
+africa=subset(africa, Code != "ATF" & Code != "EGY" & Code != "ESH"& Code != "ESP" & Code != "LBY" & Code != "MAR" & Code != "MYT" & Code != "SYC" & Code != "COM" & Code != "YEM" & Code != "TUN" & Code != "DZA" & Code != "SHN" & Code != "DJI" & Code != "STP" & Code != "ZAF")
 subset(africa, africa$Year==2013) %>% dplyr::summarise(median=median(Mutton...goat..kg., na.rm = TRUE))
 
+##########
+#Design the scenarios
+##########
 
-###SSP 1 - Beef
-#Scenario 1: the Global average path
-SSP1 = as.data.frame(ssps_countrylevel$SSP1)
-SSP1 = SSP1 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP1 %>% group_by(variable) %>% mutate(meatcons =  1.353e-03*value  +  -1.357e-08*value*value  + 3.94) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#Load historical population
+pop = wb(indicator = "SP.POP.TOTL", startdate = 1961, enddate = 2013, country = "ZG")
+pop = pop %>% select(date, value)
+pop$Scenario="SSP2"
+colnames(pop) <- c("variable", "value", "Scenario")
+pop$value=(pop$value * 0.94) / 1000000
+pop = subset(pop, pop$variable < 2010)
+pop = pop[,c(3,1,2)]
+pop$variable=as.numeric(pop$variable)
+pop <- pop[order(pop$variable),]
+
+
+### BEEF ### 
+## SSP2 ##
+# Scenario 1: China # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.02057e-03*value  +  -4.34416e-08*value*value + 5.15) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
 #africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -350,47 +510,57 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP1GA_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2CH_pc_beef=prova
+
+SSP2CH_pc_beef_plot = ggplot(SSP2CH_pc_beef, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita meat consumption in SSA")+
+  ylab("Estimated median per-capita \n beef/buffalo consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP1 - global-average-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 100))+
   scale_colour_discrete(name="Legend \n")
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2CH_pc_beef_plot.pdf", plot = SSP2CH_pc_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP1")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2CH_pc_beef = merge(SSP2CH_pc_beef, ssps_pop, by.x="Year", by.y="variable")
+SSP2CH_pc_beef$pop = SSP2CH_pc_beef$value*1000000
+SSP2CH_pc_beef$total = SSP2CH_pc_beef$meatcons*SSP2CH_pc_beef$pop
 
-SSP1GA_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2CH_aggregate_beef_plot = ggplot(SSP2CH_pc_beef, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP1 - global-average-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total beef/buffalo \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-#Scenario 2: the Asian path
-SSP1 = as.data.frame(ssps_countrylevel$SSP1)
-SSP1 = SSP1 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP1 %>% group_by(variable) %>% mutate(meatcons =  2.347e-04*value + -1.548e-09*value*value  + 16.04) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Meat.consumption.per.capita..kilograms.per.year., na.rm = TRUE))
+ggsave("SSP2CH_aggregate_beef_plot.pdf", plot = SSP2CH_aggregate_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+# Scenario 2: Brazil # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  5.88535e-03*value  +   -2.05959e-07*value*value + 5.15) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -402,47 +572,58 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP1AS_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2BR_pc_beef=prova
+
+SSP2BR_pc_beef_plot = ggplot(SSP2BR_pc_beef, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita beef consumption in SSA")+
+  ylab("Estimated median per-capita \n beef/buffalo consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP1 - Asia-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 100))+
   scale_colour_discrete(name="Legend \n")
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2BR_pc_beef_plot.pdf", plot = SSP2BR_pc_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP1")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value.y*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2BR_pc_beef = merge(SSP2BR_pc_beef, ssps_pop, by.x="Year", by.y="variable")
+SSP2BR_pc_beef$pop = SSP2BR_pc_beef$value*1000000
+SSP2BR_pc_beef$total = SSP2BR_pc_beef$meatcons*SSP2BR_pc_beef$pop
 
-SSP1AS_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2BR_aggregate_beef_plot = ggplot(SSP2BR_pc_beef, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP1 - Asia-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total beef/buffalo \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-#Scenario 3: cultural patterns will evolve towards an EU-like path
-SSP1 = as.data.frame(ssps_countrylevel$SSP1)
-SSP1 = SSP1 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP1 %>% group_by(variable) %>% mutate(meatcons =  -7.772e-04*value  +  1.959e-08*value*value  + -1.156e-13*value*value*value + 16.04) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Meat.consumption.per.capita..kilograms.per.year., na.rm = TRUE))
+ggsave("SSP2BR_aggregate_beef_plot.pdf", plot = SSP2BR_aggregate_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+##
+# Scenario 2: Viet Nam # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  -1.67765e-03*value  +   4.42647e-07*value*value + 5.15) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -454,49 +635,57 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP1EU_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2VN_pc_beef=prova
+
+SSP2VN_pc_beef_plot = ggplot(SSP2VN_pc_beef, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita meat consumption in SSA")+
+  ylab("Estimated median per-capita \n beef/buffalo consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP1 - EU-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 100))+
   scale_colour_discrete(name="Legend \n")
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2VN_pc_beef_plot.pdf", plot = SSP2VN_pc_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP1")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value.y*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2VN_pc_beef = merge(SSP2VN_pc_beef, ssps_pop, by.x="Year", by.y="variable")
+SSP2VN_pc_beef$pop = SSP2VN_pc_beef$value*1000000
+SSP2VN_pc_beef$total = SSP2VN_pc_beef$meatcons*SSP2VN_pc_beef$pop
 
-SSP1EU_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2VN_aggregate_beef_plot = ggplot(SSP2VN_pc_beef, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP1 - EU-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total beef/buffalo \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
 
+ggsave("SSP2VN_aggregate_beef_plot.pdf", plot = SSP2VN_aggregate_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
-#Scenario 4: the American path
+### POULTRY ### 
+## SSP2 ##
 
-
-###SSP 1 - Poultry
-#Scenario 1: the Global average path
-SSP1 = as.data.frame(ssps_countrylevel$SSP1)
-SSP1 = SSP1 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP1 %>% group_by(variable) %>% mutate(meatcons =   2.204e-08*value*value  + 3.07) 
+# Scenario 1: China # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.88126e-03*value  +  -1.30258e-07*value*value  + 3.14) 
 provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
 #africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
 africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
@@ -511,62 +700,58 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP1GA_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2CH_pc_poultry = prova
+
+SSP2CH_pc_poultry_plot = ggplot(SSP2CH_pc_poultry, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita poultry consumption in SSA")+
+  ylab("Estimated median per-capita \n poultry consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP1 - global-average-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
-  scale_colour_discrete(name="Legend \n")
+  ggtitle("SSP2 - China-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 100))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2CH_pc_poultry_plot.pdf", plot = SSP2CH_pc_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP1")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2CH_pc_poultry = merge(SSP2CH_pc_poultry, ssps_pop, by.x="Year", by.y="variable")
+SSP2CH_pc_poultry$pop = SSP2CH_pc_poultry$value*1000000
+SSP2CH_pc_poultry$total = SSP2CH_pc_poultry$meatcons*SSP2CH_pc_poultry$pop
 
-SSP1GA_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2CH_aggregate_poultry_plot = ggplot(SSP2CH_pc_poultry, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP1 - global-average-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total poultry \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2CH_aggregate_poultry_plot.pdf", plot = SSP2CH_aggregate_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 
-
-##SSP2
-
-
-
-##SSP3
-
-
-
-##SSP4
-
-
-
-##SSP5
-#Scenario 1: the Global average path
-SSP5 = as.data.frame(ssps_countrylevel$SSP5)
-SSP5 = SSP5 %>% dplyr::group_by(variable) %>% dplyr::mutate(value=median(value))
-provaccia = SSP5 %>% dplyr::group_by(variable) %>% dplyr::mutate(meatcons =  2.347e-04*value  +  -1.548e-09*value*value  + 3.94) 
-provaccia = provaccia %>% dplyr::group_by(variable) %>% dplyr::summarise(meatcons = median(meatcons))
+# Scenario 2: Brazil # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.18081e-03*value  + 3.14) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
 #africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -578,47 +763,57 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP5GA_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2BR_pc_poultry = prova
+
+SSP2BR_pc_poultry_plot = ggplot(SSP2BR_pc_poultry, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita meat consumption in SSA")+
+  ylab("Estimated median per-capita \n poultry consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP5 - global-average-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
-  scale_colour_discrete(name="Legend \n")
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 100))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2BR_pc_poultry_plot.pdf", plot = SSP2BR_pc_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP5")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2BR_pc_poultry = merge(SSP2BR_pc_poultry, ssps_pop, by.x="Year", by.y="variable")
+SSP2BR_pc_poultry$pop = SSP2BR_pc_poultry$value*1000000
+SSP2BR_pc_poultry$total = SSP2BR_pc_poultry$meatcons*SSP2BR_pc_poultry$pop
 
-SSP5GA_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2BR_aggregate_poultry_plot = ggplot(SSP2BR_pc_poultry, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP5 - global-average-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total poultry \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-#Scenario 2: the Asian path
-SSP5 = as.data.frame(ssps_countrylevel$SSP5)
-SSP5 = SSP5 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP5 %>% group_by(variable) %>% mutate(meatcons =  2.080e-03*value  +  -1.179e-08*value*value  + 16.04) 
+ggsave("SSP2BR_aggregate_poultry_plot.pdf", plot = SSP2BR_aggregate_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+##
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.79517e-03*value + -3.30934e-07*value*value + 3.14) 
 provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Meat.consumption.per.capita..kilograms.per.year., na.rm = TRUE))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -630,47 +825,59 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP5AS_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2VN_pc_poultry = prova
+
+SSP2VN_pc_poultry_plot = ggplot(SSP2VN_pc_poultry, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita meat consumption in SSA")+
+  ylab("Estimated median per-capita \n poultry consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP5 - Asia-like pathway")+
-  scale_y_continuous(limits = c(0,100))+
-  scale_colour_discrete(name="Legend \n")
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 100))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2VN_pc_poultry_plot.pdf", plot = SSP2VN_pc_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP5")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value.y*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2VN_pc_poultry = merge(SSP2VN_pc_poultry, ssps_pop, by.x="Year", by.y="variable")
+SSP2VN_pc_poultry$pop = SSP2VN_pc_poultry$value*1000000
+SSP2VN_pc_poultry$total = SSP2VN_pc_poultry$meatcons*SSP2VN_pc_poultry$pop
 
-SSP5AS_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2VN_aggregate_poultry_plot = ggplot(SSP2VN_pc_poultry, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP5 - Asia-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total poultry \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_y_continuous(limits = c(0, 60000))+
+  scale_x_continuous(limits = c(1961, 2050))
 
-#3) EU
-SSP5 = as.data.frame(ssps_countrylevel$SSP5)
-SSP5 = SSP5 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP5 %>% group_by(variable) %>% mutate(meatcons =  2.472e-03*value  +  -4.500e-08*value*value  + 2.591e-13*value*value*value + 16.04) 
+ggsave("SSP2VN_aggregate_poultry_plot.pdf", plot = SSP2VN_aggregate_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+### PORK ### 
+## SSP2 ##
+# Scenario 1: China # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 7.98464e-03*value  +  -4.48797e-07*value*value  + 1.62) 
 provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Meat.consumption.per.capita..kilograms.per.year., na.rm = TRUE))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
 provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
 provaccia = dplyr::select(provaccia, meatcons, Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
@@ -682,80 +889,412 @@ prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
 prova = na.omit(prova)
 
-SSP5EU_pc = ggplot(prova, aes(x=Year, y=meatcons))+
+SSP2CH_pc_pork = prova
+
+SSP2CH_pc_pork_plot = ggplot(SSP2CH_pc_pork, aes(x=Year, y=meatcons))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated median per-capita meat consumption in SSA")+
+  ylab("Estimated median per-capita \n pork consumption in SSA")+
   geom_vline(xintercept = 2015, colour = "red")+
-  ggtitle("SSP5 - EU-like pathway")+
+  ggtitle("SSP2 - China-like pathway")+
   scale_y_continuous(limits = c(0,100))+
-  scale_colour_discrete(name="Legend \n")
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
 
-ssps_pop = readxl::read_excel("C:\\Users\\Falchetta\\Dropbox (FEEM)\\Meat Africa\\iamc_db_population_SSA.xlsx")
+ggsave("SSP2CH_pc_pork_plot.pdf", plot = SSP2CH_pc_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
 ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
 ssps_pop = melt(ssps_pop)
-ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP5")
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
 ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
 ssps_pop = pad(ssps_pop, interval = "year")
 ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
 ssps_pop<- na.interpolation(ssps_pop, option = "linear")
-prova = merge(prova, ssps_pop, by.x="Year", by.y="variable")
-prova$pop = prova$value.y*1000000
-prova$total = prova$meatcons*prova$pop
+ssps_pop = rbind(pop, ssps_pop)
+SSP2CH_pc_pork = merge(SSP2CH_pc_pork, ssps_pop, by.x="Year", by.y="variable")
+SSP2CH_pc_pork$pop = SSP2CH_pc_pork$value*1000000
+SSP2CH_pc_pork$total = SSP2CH_pc_pork$meatcons*SSP2CH_pc_pork$pop
 
-SSP5EU_aggregate = ggplot(prova, aes(x=Year, y=total/1000000))+
+SSP2CH_aggregate_pork_plot = ggplot(SSP2CH_pc_pork, aes(x=Year, y=total/1000000))+
   theme_light()+
   geom_smooth(method="lm", se=TRUE, fill=NA,
               formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
   geom_point(aes(colour=predicted))+
   geom_vline(xintercept = 2015, colour = "red")+
   geom_point(aes(colour=predicted))+
-  ylab("Estimated total meat consumption in SSA (Mt)")+
-  ggtitle("SSP5 - EU-like pathway")+
-  scale_colour_discrete(name="Legend \n")
+  ylab("Estimated total pork \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+ggsave("SSP2CH_aggregate_pork_plot.pdf", plot = SSP2CH_aggregate_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+
+# Scenario 2: Brazil # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.11823e-03*value  +  -7.03871e-08*value*value  + 1.62) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
+provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
+provaccia = dplyr::select(provaccia, meatcons, Year)
+provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia$source="SSP"
+africa_edit$source="Real"
+prova = rbind(provaccia, africa_edit)
+prova = prova[with(prova, order(Year)), ]
+prova = subset(prova, prova$Year > 1961)
+prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
+prova = na.omit(prova)
+
+SSP2BR_pc_pork = prova
+
+SSP2BR_pc_pork_plot = ggplot(SSP2BR_pc_pork, aes(x=Year, y=meatcons))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated median per-capita \n pork consumption in SSA")+
+  geom_vline(xintercept = 2015, colour = "red")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_y_continuous(limits = c(0,100))+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2BR_pc_pork_plot.pdf", plot = SSP2BR_pc_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
+ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
+ssps_pop = pad(ssps_pop, interval = "year")
+ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
+ssps_pop<- na.interpolation(ssps_pop, option = "linear")
+ssps_pop = rbind(pop, ssps_pop)
+SSP2BR_pc_pork = merge(SSP2BR_pc_pork, ssps_pop, by.x="Year", by.y="variable")
+SSP2BR_pc_pork$pop = SSP2BR_pc_pork$value*1000000
+SSP2BR_pc_pork$total = SSP2BR_pc_pork$meatcons*SSP2BR_pc_pork$pop
+
+SSP2BR_aggregate_pork_plot = ggplot(SSP2BR_pc_pork, aes(x=Year, y=total/1000000))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  geom_vline(xintercept = 2015, colour = "red")+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated total pork \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+ggsave("SSP2BR_aggregate_pork_plot.pdf", plot = SSP2BR_aggregate_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+##
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 1.03485e-02*value  +  -8.51746e-07*value*value  + 1.62) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
+provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
+provaccia = dplyr::select(provaccia, meatcons, Year)
+provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia$source="SSP"
+africa_edit$source="Real"
+prova = rbind(provaccia, africa_edit)
+prova = prova[with(prova, order(Year)), ]
+prova = subset(prova, prova$Year > 1961)
+prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
+prova = na.omit(prova)
+
+SSP2VN_pc_pork = prova
+
+SSP2VN_pc_pork_plot = ggplot(SSP2VN_pc_pork, aes(x=Year, y=meatcons))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated median per-capita \n pork consumption in SSA")+
+  geom_vline(xintercept = 2015, colour = "red")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_y_continuous(limits = c(0,100))+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2VN_pc_pork_plot.pdf", plot = SSP2VN_pc_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
+ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
+ssps_pop = pad(ssps_pop, interval = "year")
+ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
+ssps_pop<- na.interpolation(ssps_pop, option = "linear")
+ssps_pop = rbind(pop, ssps_pop)
+SSP2VN_pc_pork = merge(SSP2VN_pc_pork, ssps_pop, by.x="Year", by.y="variable")
+SSP2VN_pc_pork$pop = SSP2VN_pc_pork$value*1000000
+SSP2VN_pc_pork$total = SSP2VN_pc_pork$meatcons*SSP2VN_pc_pork$pop
+
+SSP2VN_aggregate_pork_plot = ggplot(SSP2VN_pc_pork, aes(x=Year, y=total/1000000))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  geom_vline(xintercept = 2015, colour = "red")+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated total pork \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+ggsave("SSP2VN_aggregate_pork_plot.pdf", plot = SSP2VN_aggregate_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+### MUTTON ### 
+## SSP2 ##
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 7.31639e-04*value  +  -3.52518e-08*value*value  + 1.6) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
+provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
+provaccia = dplyr::select(provaccia, meatcons, Year)
+provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia$source="SSP"
+africa_edit$source="Real"
+prova = rbind(provaccia, africa_edit)
+prova = prova[with(prova, order(Year)), ]
+prova = subset(prova, prova$Year > 1961)
+prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
+prova = na.omit(prova)
+
+SSP2CH_pc_mutton = prova
+
+SSP2CH_pc_mutton_plot = ggplot(SSP2CH_pc_mutton, aes(x=Year, y=meatcons))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated median per-capita \n mutton/goat consumption in SSA")+
+  geom_vline(xintercept = 2015, colour = "red")+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_y_continuous(limits = c(0,100))+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2CH_pc_mutton_plot.pdf", plot = SSP2CH_pc_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
+ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
+ssps_pop = pad(ssps_pop, interval = "year")
+ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
+ssps_pop<- na.interpolation(ssps_pop, option = "linear")
+ssps_pop = rbind(pop, ssps_pop)
+SSP2CH_pc_mutton = merge(SSP2CH_pc_mutton, ssps_pop, by.x="Year", by.y="variable")
+SSP2CH_pc_mutton$pop = SSP2CH_pc_mutton$value*1000000
+SSP2CH_pc_mutton$total = SSP2CH_pc_mutton$meatcons*SSP2CH_pc_mutton$pop
+
+SSP2CH_aggregate_mutton_plot = ggplot(SSP2CH_pc_mutton, aes(x=Year, y=total/1000000))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  geom_vline(xintercept = 2015, colour = "red")+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated total mutton/goat \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - China-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+
+ggsave("SSP2CH_aggregate_mutton_plot.pdf", plot = SSP2CH_aggregate_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+
+# Scenario 2: Brazil # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  3.14) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
+provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
+provaccia = dplyr::select(provaccia, meatcons, Year)
+provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia$source="SSP"
+africa_edit$source="Real"
+prova = rbind(provaccia, africa_edit)
+prova = prova[with(prova, order(Year)), ]
+prova = subset(prova, prova$Year > 1961)
+prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
+prova = na.omit(prova)
+
+SSP2BR_pc_mutton = prova
+
+SSP2BR_pc_mutton_plot = ggplot(SSP2BR_pc_mutton, aes(x=Year, y=meatcons))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated median per-capita \n mutton/goat consumption in SSA")+
+  geom_vline(xintercept = 2015, colour = "red")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_y_continuous(limits = c(0,100))+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2BR_pc_mutton_plot.pdf", plot = SSP2BR_pc_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
+ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
+ssps_pop = pad(ssps_pop, interval = "year")
+ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
+ssps_pop<- na.interpolation(ssps_pop, option = "linear")
+ssps_pop = rbind(pop, ssps_pop)
+SSP2BR_pc_mutton = merge(SSP2BR_pc_mutton, ssps_pop, by.x="Year", by.y="variable")
+SSP2BR_pc_mutton$pop = SSP2BR_pc_mutton$value*1000000
+SSP2BR_pc_mutton$total = SSP2BR_pc_mutton$meatcons*SSP2BR_pc_mutton$pop
+
+SSP2BR_aggregate_mutton_plot = ggplot(SSP2BR_pc_mutton, aes(x=Year, y=total/1000000))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  geom_vline(xintercept = 2015, colour = "red")+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated total mutton/goat \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Brazil-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+ggsave("SSP2BR_aggregate_mutton_plot.pdf", plot = SSP2BR_aggregate_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
+##
+# Scenario 2: Viet Nam # 
+SSP2 = as.data.frame(ssps_countrylevel$SSP2)
+SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  value*-3.78165e-05 + value*value*1.27915e-08 + 3.14) 
+provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
+#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
+africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
+provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
+provaccia = dplyr::select(provaccia, meatcons, Year)
+provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia$source="SSP"
+africa_edit$source="Real"
+prova = rbind(provaccia, africa_edit)
+prova = prova[with(prova, order(Year)), ]
+prova = subset(prova, prova$Year > 1961)
+prova$predicted=ifelse(prova$source == "Real", "Actual", "Projected")
+prova = na.omit(prova)
+
+SSP2VN_pc_mutton = prova
+
+SSP2VN_pc_mutton_plot = ggplot(SSP2VN_pc_mutton, aes(x=Year, y=meatcons))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated median per-capita \n mutton/goat consumption in SSA")+
+  geom_vline(xintercept = 2015, colour = "red")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_y_continuous(limits = c(0,100))+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))
+
+ggsave("SSP2VN_pc_mutton_plot.pdf", plot = SSP2VN_pc_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = subset(ssps_pop, ssps_pop$Scenario=="SSP2")
+ssps_pop$variable<-as.POSIXct(ssps_pop$variable,format="%Y")
+ssps_pop = pad(ssps_pop, interval = "year")
+ssps_pop$variable = substr(ssps_pop$variable, 1, 4) 
+ssps_pop<- na.interpolation(ssps_pop, option = "linear")
+ssps_pop = rbind(pop, ssps_pop)
+SSP2VN_pc_mutton = merge(SSP2VN_pc_mutton, ssps_pop, by.x="Year", by.y="variable")
+SSP2VN_pc_mutton$pop = SSP2VN_pc_mutton$value*1000000
+SSP2VN_pc_mutton$total = SSP2VN_pc_mutton$meatcons*SSP2VN_pc_mutton$pop
+
+SSP2VN_aggregate_mutton_plot = ggplot(SSP2VN_pc_mutton, aes(x=Year, y=total/1000000))+
+  theme_light()+
+  geom_smooth(method="lm", se=TRUE, fill=NA,
+              formula=y ~ poly(x, 5, raw=TRUE),colour="grey", alpha=0.5)+
+  geom_point(aes(colour=predicted))+
+  geom_vline(xintercept = 2015, colour = "red")+
+  geom_point(aes(colour=predicted))+
+  ylab("Estimated total mutton/goat \n consumption in SSA (Mt)")+
+  ggtitle("SSP2 - Viet Nam-like pathway")+
+  scale_colour_discrete(name="Legend \n")+
+  scale_x_continuous(limits = c(1961, 2050))+
+  scale_y_continuous(limits = c(0, 60000))
+
+ggsave("SSP2VN_aggregate_mutton_plot.pdf", plot = SSP2VN_aggregate_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
+
 
 #############
-#Create combined plots for dplyr::selected scenarios
-library(cowplot)
-plot_grid(SSP1AS_pc, SSP1GA_pc, SSP5AS_pc, SSP5GA_pc, SSP1EU_pc, SSP5EU_pc)
-plot_grid(SSP1AS_aggregate, SSP1GA_aggregate, SSP5AS_aggregate, SSP5GA_aggregate, SSP1EU_aggregate, SSP5EU_aggregate)
+#4) Create combined plots for selected scenarios
+SSP2_beef_pc <- plot_grid(SSP2CH_pc_beef_plot + theme(legend.position="none"), SSP2BR_pc_beef_plot + theme(legend.position="none"), SSP2VN_pc_beef_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_pc_beef_plot)
+SSP2_beef_pc <- plot_grid(SSP2_beef_pc, legend, ncol = 2, rel_widths = c(0.4, .1))
+
+SSP2_beef_agg <- plot_grid(SSP2CH_aggregate_beef_plot + theme(legend.position="none"), SSP2BR_aggregate_beef_plot + theme(legend.position="none"), SSP2VN_aggregate_beef_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_aggregate_beef_plot)
+SSP2_beef_agg <- plot_grid(SSP2_beef_agg, legend, ncol = 2, rel_widths = c(0.4, .1))
+
+ggsave("SSP2_beef_pc.pdf", plot = SSP2_beef_pc, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+ggsave("SSP2_beef_agg.pdf", plot = SSP2_beef_agg, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+
+SSP2_poultry_pc <- plot_grid(SSP2CH_pc_poultry_plot + theme(legend.position="none"), SSP2BR_pc_poultry_plot + theme(legend.position="none"), SSP2VN_pc_poultry_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_pc_poultry_plot)
+SSP2_poultry_pc <- plot_grid(SSP2_poultry_pc, legend, ncol = 2, rel_widths = c(0.4, .1))
+
+SSP2_poultry_agg <- plot_grid(SSP2CH_aggregate_poultry_plot + theme(legend.position="none"), SSP2BR_aggregate_poultry_plot + theme(legend.position="none"), SSP2VN_aggregate_poultry_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_aggregate_poultry_plot)
+SSP2_poultry_agg <- plot_grid(SSP2_poultry_agg, legend, ncol = 2, rel_widths = c(0.4, .1))
+
+ggsave("SSP2_poultry_pc.pdf", plot = SSP2_poultry_pc, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+ggsave("SSP2_poultry_agg.pdf", plot = SSP2_poultry_agg, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+
+SSP2_pork_pc <- plot_grid(SSP2CH_pc_pork_plot + theme(legend.position="none"), SSP2BR_pc_pork_plot + theme(legend.position="none"), SSP2VN_pc_pork_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_pc_pork_plot)
+SSP2_pork_pc <- plot_grid(SSP2_pork_pc, legend, ncol = 2, rel_widths = c(0.4, .1))
 
 
-###############
-##4) Analyse also the production-side (EXTRA, probably not for paper)
-meat_prod_tonnes<-read.csv("meat-production-tonnes.csv")
-meat_prod_tonnes<-subset(meat_prod_tonnes, Year > 1900)
+SSP2_pork_agg <- plot_grid(SSP2CH_aggregate_pork_plot + theme(legend.position="none"), SSP2BR_aggregate_pork_plot + theme(legend.position="none"), SSP2VN_aggregate_pork_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_aggregate_pork_plot)
+SSP2_pork_agg <- plot_grid(SSP2_pork_agg, legend, ncol = 2, rel_widths = c(0.4, .1))
 
-consumption = pc_gdp_pc %>% dplyr::select(Meat.consumption.per.capita..kilograms.per.year., Entity, Year)
+ggsave("SSP2_pork_pc.pdf", plot = SSP2_pork_pc, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+ggsave("SSP2_pork_agg.pdf", plot = SSP2_pork_agg, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
 
-tot = merge(meat_prod_tonnes, consumption, by=c("Entity", "Year"))
+SSP2_mutton_pc <- plot_grid(SSP2CH_pc_mutton_plot + theme(legend.position="none"), SSP2BR_pc_mutton_plot + theme(legend.position="none"), SSP2VN_pc_mutton_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_pc_mutton_plot)
+SSP2_mutton_pc <- plot_grid(SSP2_mutton_pc, legend, ncol = 2, rel_widths = c(0.4, .1))
 
-library(wbstats)
+SSP2_mutton_agg <- plot_grid(SSP2CH_aggregate_mutton_plot + theme(legend.position="none"), SSP2BR_aggregate_mutton_plot + theme(legend.position="none"), SSP2VN_aggregate_mutton_plot + theme(legend.position="none"))
+legend <- get_legend(SSP2CH_aggregate_mutton_plot)
+SSP2_mutton_agg <- plot_grid(SSP2_mutton_agg, legend, ncol = 2, rel_widths = c(0.4, .1))
 
-gdp = wb(indicator = "NY.GDP.PCAP.PP.KD", startdate = 1961, enddate = 2013)
-pop = wb(indicator = "SP.POP.TOTL", startdate = 1961, enddate = 2013)
-tot2 = merge(gdp, pop, by=c("iso3c", "date"))
-tot = merge(tot, tot2, by.x=c("Code", "Year"), by.y=c("iso3c", "date"))
+ggsave("SSP2_mutton_pc.pdf", plot = SSP2_mutton_pc, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+ggsave("SSP2_mutton_agg.pdf", plot = SSP2_mutton_agg, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
 
-tot$gdp = tot$value.x
-
-tot = tot %>% group_by(Year) %>% mutate(globpop = sum(pop), avglobgdp = mean(gdp))
-
-formula = "log(Livestock.Primary..Meat..Total...Production...tonnes..FAO..2017....tonnes.)  ~ log(gdp) + log(pop) + log(avglobgdp)"
-ols1 = lm(formula, data = tot)
-summary(ols1)
-
-formula = "log(Livestock.Primary..Meat..Total...Production...tonnes..FAO..2017....tonnes.)  ~ log(gdp) + log(pop) + log(avglobgdp) + factor(Entity) "
-ols2 = lm(formula, data = tot)
-summary(ols2)
-
-formula = "log(Livestock.Primary..Meat..Total...Production...tonnes..FAO..2017....tonnes.)  ~ log(gdp) + log(pop) + log(avglobgdp) + factor(Year) + factor(Entity) "
-ols3 = lm(formula, data = tot)
-summary(ols3)
-
-#stargazer(ols1, ols2, ols3, type = "latex", dep.var.labels   = "Log of meat production", add.lines = list(c("Country fixed effects", "No", "Yes", "Yes"), c("Year fixed effects", "No", "No", "Yes")))
 
 #####################################
 #5) calculate environmental impacts
