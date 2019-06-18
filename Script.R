@@ -4,7 +4,7 @@
 ########################
 ##Giacomo Falchetta, Michel Noussan
 #Any question should be addressed to giacomo.falchetta@feem.it
-### Version: 06/05/19 ###
+### Version: 12/05/19 ###
 
 #Load required libraries
 library(ggplot2)
@@ -32,7 +32,7 @@ setwd("D:\\Dropbox (FEEM)\\Meat Africa\\Repo\\meatSSA\\Data")
 #2) Regress GDP and meat consumption (demand-side) to derive coefficients for scenario projection
 #3) Design scenarios projecting the SSPs
 #4) Create combined plots for selected scenarios
-#5) Calculate environmental impact
+#5) Export scenarios
 ##############
 
 
@@ -175,9 +175,7 @@ africa<-ggplot(pc_gdp_pc_regional_Africa, aes(x=cgdppc, y=Meat.consumption.per.c
   theme(legend.position="bottom", axis.text=element_text(size=8))
 
 #1.2. Figures on meat-industry emissions
-setwd("Data")
-
-GHG<-readxl::read_excel("Total_livestock_emissions_GLEAM_2017.xlsx")
+GHG<-readxl::read_excel("D:\\Dropbox (FEEM)\\Meat Africa\\Resources\\Total_livestock_emissions_GLEAM_2017.xlsx")
 
 GHG_plot = ggplot(data=GHG, aes(x=Region, y=MilliontonnesCO2eq/1000)) +
   geom_bar(stat="identity", fill="steelblue")+
@@ -294,6 +292,9 @@ y = y %>% group_by(Year) %>% mutate(globcons_Poultry..kg.=mean(Poultry..kg., na.
 y = y %>% group_by(Year) %>% mutate(globcons_Mutton...goat..kg.=mean(Mutton...goat..kg., na.rm=TRUE)) %>% ungroup()
 y = y %>% group_by(Year) %>% mutate(globcons_Beef.and.buffalo..kg.=mean(Beef.and.buffalo..kg., na.rm=TRUE)) %>% ungroup()
 
+y = y %>% group_by(Year) %>% mutate(globcons_Beef.and.buffalo..kg._5= globcons_Beef.and.buffalo..kg. - shift(globcons_Beef.and.buffalo..kg., -5)) %>% ungroup()
+
+
 global = subset(y, y$Code == region_regression)
 
 global$Pigmeat..kg._1 <- shift(global$Pigmeat..kg., -5)
@@ -310,44 +311,65 @@ global$Beef.and.buffalo..kg._delta = global$Beef.and.buffalo..kg. - global$Beef.
 
 #Beef 
 formula1 = Beef.and.buffalo..kg. ~ cgdppc + I(cgdppc^2) + Pigmeat..kg._delta + Mutton...goat..kg._delta + Poultry..kg._delta + globcons_Beef.and.buffalo..kg.
-results = lm(formula1, data = global)
-summary(results)
+CH_beef = lm(formula1, data = global)
+summary(CH_beef)
 
+#Granger test
 grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
 grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
 
 #Pig
 formula2 = Pigmeat..kg. ~ cgdppc + I(cgdppc^2) + Mutton...goat..kg._delta + Poultry..kg._delta + Beef.and.buffalo..kg._delta + globcons_Pigmeat..kg.
-results = lm(formula2, data = global)
-summary(results)
+CH_pork = lm(formula2, data = global)
+summary(CH_pork)
 
+#Granger test
 grangertest(global$cgdppc, global$Pigmeat..kg., order = 5)
 grangertest(global$Pigmeat..kg., global$cgdppc, order = 5)
 
 #Poultry
 formula3 = Poultry..kg. ~ cgdppc + I(cgdppc^2)  + Mutton...goat..kg._delta + Pigmeat..kg._delta + Beef.and.buffalo..kg._delta + globcons_Poultry..kg.
-results = lm(formula3, data = global)
-summary(results)
+CH_poultry = lm(formula3, data = global)
+summary(CH_poultry)
 
+
+#Granger test
 grangertest(x=global$cgdppc, y=global$Poultry..kg., order = 5)
 grangertest(x=global$Poultry..kg., y=global$cgdppc, order = 5)
 
 #Mutton-goat
 formula4 = Mutton...goat..kg. ~ cgdppc + I(cgdppc^2) + Poultry..kg._delta + Pigmeat..kg._delta + Beef.and.buffalo..kg._delta + globcons_Mutton...goat..kg.
-results = lm(formula4, data = global)
-summary(results)
+CH_mutton = lm(formula4, data = global)
+summary(CH_mutton)
 
+
+#Granger test
 grangertest(global$cgdppc, global$Mutton...goat..kg., order = 5)
 grangertest(global$Mutton...goat..kg., global$cgdppc, order = 5)
 
-
-
 formula = list(formula1, formula2, formula3, formula4)
-summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+CH_sur = systemfit(formula, method = "SUR", data=global, maxiter=500)
+summary(CH_sur)
 
-chres <- systemfit(formula, method = "SUR", data=global, maxiter=500)
+global$effect_beef = (CH_sur[["coefficients"]][["eq1_cgdppc"]]) + (2 * CH_sur[["coefficients"]][["eq1_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_pork = (CH_sur[["coefficients"]][["eq2_cgdppc"]]) + (2 * CH_sur[["coefficients"]][["eq2_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_poultry = (CH_sur[["coefficients"]][["eq3_cgdppc"]]) + (2 * CH_sur[["coefficients"]][["eq3_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_mutton = (CH_sur[["coefficients"]][["eq4_cgdppc"]]) + (2 * CH_sur[["coefficients"]][["eq4_I(cgdppc^2)"]] * global$cgdppc)
 
-texreg(list(chres))
+effect_CH = ggplot()+
+  theme_grey()+
+  scale_colour_discrete(name="Meat type")+
+  geom_line(data=global, aes(x=cgdppc, y=effect_beef*1000, colour="Beef & buffalo"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_pork*1000, colour="Pork"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_poultry*1000, colour="Poultry"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_mutton*1000, colour="Goat & mutton"))+
+  xlab("PPP real per-capita GDP")+
+  ylab("Marginal effect \n on meat consumption (grams/capita)")+
+  scale_y_continuous(limits = c(0, 8))+
+  ggtitle("China")
+
+#chres <- systemfit(formula, method = "SUR", data=global, maxiter=500)
+#texreg(list(chres))
 
 ##
 
@@ -371,7 +393,26 @@ grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
 grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
 
 formula = list(formula1, formula2, formula3, formula4)
-summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+BR_sur = systemfit(formula, method = "SUR", data=global, maxiter=500)
+summary(BR_sur)
+
+global$effect_beef = (BR_sur[["coefficients"]][["eq1_cgdppc"]]) + (2 * BR_sur[["coefficients"]][["eq1_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_pork = (BR_sur[["coefficients"]][["eq2_cgdppc"]]) + (2 * BR_sur[["coefficients"]][["eq2_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_poultry = (BR_sur[["coefficients"]][["eq3_cgdppc"]]) + (2 * BR_sur[["coefficients"]][["eq3_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_mutton = (BR_sur[["coefficients"]][["eq4_cgdppc"]]) + (2 * BR_sur[["coefficients"]][["eq4_I(cgdppc^2)"]] * global$cgdppc)
+
+effect_BR = ggplot()+
+  theme_grey()+
+  scale_colour_discrete(name="Meat type")+
+  geom_line(data=global, aes(x=cgdppc, y=effect_beef*1000, colour="Beef & buffalo"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_pork*1000, colour="Pork"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_poultry*1000, colour="Poultry"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_mutton*1000, colour="Goat & mutton"))+
+  xlab("PPP real per-capita GDP")+
+  ylab("Marginal effect \n on meat consumption (grams/capita)")+
+  scale_y_continuous(limits = c(0, 8))+
+  ggtitle("Brazil")
+
 
 ###
 region_regression="EGY"
@@ -394,7 +435,25 @@ grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
 grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
 
 formula = list(formula1, formula2, formula3, formula4)
-summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+EG_sur = systemfit(formula, method = "SUR", data=global, maxiter=500)
+summary(EG_sur)
+
+global$effect_beef = (EG_sur[["coefficients"]][["eq1_cgdppc"]]) + (2 * EG_sur[["coefficients"]][["eq1_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_pork = (EG_sur[["coefficients"]][["eq2_cgdppc"]]) + (2 * EG_sur[["coefficients"]][["eq2_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_poultry = (EG_sur[["coefficients"]][["eq3_cgdppc"]]) + (2 * EG_sur[["coefficients"]][["eq3_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_mutton = (EG_sur[["coefficients"]][["eq4_cgdppc"]]) + (2 * EG_sur[["coefficients"]][["eq4_I(cgdppc^2)"]] * global$cgdppc)
+
+effect_EG = ggplot()+
+  theme_grey()+
+  scale_colour_discrete(name="Meat type")+
+  geom_line(data=global, aes(x=cgdppc, y=effect_beef*1000, colour="Beef & buffalo"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_pork*1000, colour="Pork"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_poultry*1000, colour="Poultry"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_mutton*1000, colour="Goat & mutton"))+
+  xlab("PPP real per-capita GDP")+
+  ylab("Marginal effect \n on meat consumption (grams/capita)")+
+  scale_y_continuous(limits = c(0, 8))+
+  ggtitle("Egypt")
 
 ##
 region_regression="VNM"
@@ -417,11 +476,31 @@ grangertest(global$cgdppc, global$Beef.and.buffalo..kg., order = 5)
 grangertest(global$Beef.and.buffalo..kg., global$cgdppc, order = 5)
 
 formula = list(formula1, formula2, formula3, formula4)
-summary(systemfit(formula, method = "SUR", data=global, maxiter=500))
+VN_sur = systemfit(formula, method = "SUR", data=global, maxiter=500)
+summary(VN_sur)
 
+global$effect_beef = (VN_sur[["coefficients"]][["eq1_cgdppc"]]) + (2 * VN_sur[["coefficients"]][["eq1_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_pork = (VN_sur[["coefficients"]][["eq2_cgdppc"]]) + (2 * VN_sur[["coefficients"]][["eq2_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_poultry = (VN_sur[["coefficients"]][["eq3_cgdppc"]]) + (2 * VN_sur[["coefficients"]][["eq3_I(cgdppc^2)"]] * global$cgdppc)
+global$effect_mutton = (VN_sur[["coefficients"]][["eq4_cgdppc"]]) + (2 * VN_sur[["coefficients"]][["eq4_I(cgdppc^2)"]] * global$cgdppc)
+
+effect_VN = ggplot()+
+  theme_grey()+
+  scale_colour_discrete(name="Meat type")+
+  geom_line(data=global, aes(x=cgdppc, y=effect_beef*1000, colour="Beef & buffalo"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_pork*1000, colour="Pork"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_poultry*1000, colour="Poultry"))+
+  geom_line(data=global, aes(x=cgdppc, y=effect_mutton*1000, colour="Goat & mutton"))+
+  xlab("PPP real per-capita GDP")+
+  ylab("Marginal effect \n on meat consumption (grams/capita)")+
+  scale_y_continuous(limits = c(0, 8))+
+  ggtitle("Viet Nam")
+
+effects <-plot_grid(effect_CH, effect_EG, effect_BR, effect_VN, cols = 2, rows = 2)
+
+ggsave("effects.pdf", plot = effects, device = "pdf", width = 50, height = 30, units = "cm", scale=0.6)
 
 ###
-
 
 meat_prod_tonnes<-read.csv("meat-production-tonnes.csv")
 meat_prod_tonnes = merge(meat_prod_tonnes, y, by=c("Code", "Year"))
@@ -454,24 +533,44 @@ grangertest(meat_prod_tonnes$prodpc, meat_prod_tonnes$cgdppc, order = 6)
 #3) Design scenarios projecting the SSPs
 #3.1 import the SSPs
 ssps = readxl::read_excel("iamc_db.xlsx")
-ssps_countrylevel = readxl::read_excel("iamc_db_countrylevel.xlsx")
-ssps_countrylevel = ssps_countrylevel %>% mutate_if(is.numeric, funs(.*1000))
+ssps = ssps %>% group_by(Scenario, Region) %>% summarise_if(is.numeric, funs(sum(.*1000)))
+ssps = melt(ssps)
+
+ssps = ssps %>% rename(pcgdp=value)
+
+#
+ssps_pop = readxl::read_excel("iamc_db_population_SSA.xlsx")
+ssps_pop = ssps_pop %>% group_by(Scenario, Region) %>% summarise_if(is.numeric, funs(sum(.)))
+ssps_pop = melt(ssps_pop)
+ssps_pop = ssps_pop %>%  group_by(Scenario, variable) %>% mutate(share = value / sum(value))
+
+ssps_pop = ssps_pop %>% rename(pop=value)
+
+ssps = merge(ssps, ssps_pop, by=c("Scenario", "Region", "variable"))
+
+ssps = ssps %>% group_by(Scenario, variable) %>% summarise(pcgdp=sum(pcgdp*share))
 
 #3.2 adjust unit of dollars (from 2005 to 2011 PPP per-capita GDP)
 adjfactor = wb(indicator = "PA.NUS.PPP", startdate = 2005, enddate = 2011)
-adjfactor = adjfactor %>% dplyr::select(iso3c, date, value)
-adjfactor = adjfactor %>% subset(date == 2011 | date == 2005) %>% group_by(iso3c) %>% summarise(value= value[1]/value[2])  
-ssps_countrylevel = merge(ssps_countrylevel, adjfactor, by.x="Region", by.y="iso3c")
-ssps_countrylevel = ssps_countrylevel %>% mutate_if(is.numeric, funs(.*value))
+gdp = wb(indicator = "NY.GDP.MKTP.KD", startdate = 2005, enddate = 2011)
 
-##3.3 reshape, merge, add continents
-ssps_countrylevel$continent=countrycode(ssps_countrylevel$Region, 'iso3c', 'continent')
-ssps_countrylevel = ssps_countrylevel[complete.cases(ssps_countrylevel[ , 26]),]
-ssps_countrylevel = subset(ssps_countrylevel, ssps_countrylevel$continent == "Africa")
-ssps_countrylevel=subset(ssps_countrylevel, Region != "ATF" & Region != "EGY" & Region != "ESH"& Region != "ESP" & Region != "LBY" & Region != "MAR" & Region != "MYT" & Region != "SYC" & Region != "COM" & Region != "YEM" & Region != "TUN" & Region != "DZA" & Region != "SHN" & Region != "DJI" & Region != "STP")
-pr = ssps_countrylevel %>% dplyr::select(-c(Model, Variable, Unit, Notes, continent))
-ssps_countrylevel = melt(pr, id.vars=c("Region", "Scenario"))
-ssps_countrylevel <- split(ssps_countrylevel, ssps_countrylevel$Scenario)
+##
+#Calculate adj. factor for SSA weighted by the size of natioanal GDPs
+gdp$continent=countrycode(gdp$iso3c, 'iso3c', 'continent')
+gdp = gdp[complete.cases(gdp$continent),]
+gdp = subset(gdp, gdp$continent == "Africa")
+gdp=subset(gdp, iso3c != "ATF" & iso3c != "EGY" & iso3c != "ESH"& iso3c != "ESP" & iso3c != "LBY" & iso3c != "MAR" & iso3c != "MYT" & iso3c != "SYC" & iso3c != "COM" & iso3c != "YEM" & iso3c != "TUN" & iso3c != "DZA" & iso3c != "SHN" & iso3c != "DJI" & iso3c != "STP")
+gdp = gdp %>%  group_by(date) %>% mutate(share = value / sum(value)) %>% ungroup()
+gdp = gdp %>% group_by(iso3c) %>% summarise(share=mean(share))
+
+####
+
+adjfactor = adjfactor %>% dplyr::select(iso3c, date, value) %>% rename(adj=value)
+adjfactor = adjfactor %>% subset(date == 2011 | date == 2005) %>% group_by(iso3c) %>% summarise(adj= adj[1]/adj[2])  
+gdp = merge(gdp, adjfactor, by=c("iso3c"))
+gdp = as.numeric(gdp %>% summarise(adjf = sum(adj*share)))
+
+ssps = ssps %>% mutate(pcgdp=pcgdp*gdp)
 
 
 #3.4 Define the intercept terms for each type of meat, which is given by today's average level of consumption
@@ -502,7 +601,7 @@ subset(africa, africa$Year==2013) %>% dplyr::summarise(median=median(Mutton...go
 
 #Load historical population
 pop = wb(indicator = "SP.POP.TOTL", startdate = 1961, enddate = 2013, country = "ZG")
-pop = pop %>% select(date, value)
+pop = pop %>% dplyr::select(date, value)
 pop$Scenario="SSP2"
 colnames(pop) <- c("variable", "value", "Scenario")
 pop$value=(pop$value * 0.94) / 1000000
@@ -511,19 +610,19 @@ pop = pop[,c(3,1,2)]
 pop$variable=as.numeric(pop$variable)
 pop <- pop[order(pop$variable),]
 
+as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
 ### BEEF ### 
 ## SSP2 ##
 # Scenario 1: China # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% dplyr::group_by(variable) %>% dplyr::mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.02057e-03*value  +  -4.34416e-08*value*value + 5.15) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.02057e-03*pcgdp  +  -4.34416e-08*pcgdp*pcgdp + 5.15) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -579,15 +678,14 @@ SSP2CH_aggregate_beef_plot = ggplot(SSP2CH_pc_beef, aes(x=Year, y=total/1000000)
 #ggsave("SSP2CH_aggregate_beef_plot.pdf", plot = SSP2CH_aggregate_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 # Scenario 2: Brazil # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  5.88535e-03*value  +   -2.05959e-07*value*value + 5.15) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  5.88535e-03*pcgdp  +  -2.05959e-07*pcgdp*pcgdp + 5.15) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -643,15 +741,14 @@ SSP2BR_aggregate_beef_plot = ggplot(SSP2BR_pc_beef, aes(x=Year, y=total/1000000)
 #ggsave("SSP2BR_aggregate_beef_plot.pdf", plot = SSP2BR_aggregate_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 # Scenario 2: Egypt # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.50978e-03*value  +   -5.71910e-08*value*value + 5.15) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.50978e-03*pcgdp  +  -5.71910e-08*pcgdp*pcgdp + 5.15) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -709,15 +806,14 @@ SSP2EG_aggregate_beef_plot = ggplot(SSP2EG_pc_beef, aes(x=Year, y=total/1000000)
 
 ##
 # Scenario 2: Viet Nam # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  -1.67765e-03*value  +   4.42647e-07*value*value + 5.15) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = mean(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  -1.67765e-03*pcgdp  +  4.42647e-07*pcgdp*pcgdp + 5.15) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Beef.and.buffalo..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -740,6 +836,8 @@ SSP2VN_pc_beef_plot = ggplot(SSP2VN_pc_beef, aes(x=Year, y=meatcons))+
   scale_y_continuous(limits = c(0, 100))+
   scale_colour_discrete(name="Legend \n")+
   theme(plot.title = element_text(size=9))
+
+s = ggplot_build(SSP2VN_pc_beef_plot)
 
 #ggsave("SSP2VN_pc_beef_plot.pdf", plot = SSP2VN_pc_beef_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
@@ -776,15 +874,14 @@ SSP2VN_aggregate_beef_plot = ggplot(SSP2VN_pc_beef, aes(x=Year, y=total/1000000)
 ## SSP2 ##
 
 # Scenario 1: China # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.88126e-03*value  +  -1.30258e-07*value*value  + 3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  2.88126e-03*pcgdp  +  -1.30258e-07*pcgdp*pcgdp + 3.14) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Poultry..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -841,15 +938,14 @@ SSP2CH_aggregate_poultry_plot = ggplot(SSP2CH_pc_poultry, aes(x=Year, y=total/10
 
 
 # Scenario 2: Brazil # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.18081e-03*value  + 3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  2.18081e-03*pcgdp  + 3.14) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Poultry..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -905,15 +1001,14 @@ SSP2BR_aggregate_poultry_plot = ggplot(SSP2BR_pc_poultry, aes(x=Year, y=total/10
 #ggsave("SSP2BR_aggregate_poultry_plot.pdf", plot = SSP2BR_aggregate_poultry_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 # Scenario 1: Egypt # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = -1.57081e-03*value  +  1.02501e-07*value*value  + 3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  -1.57081e-03*pcgdp  + 1.02501e-07*pcgdp*pcgdp +3.14) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Poultry..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -933,7 +1028,7 @@ SSP2EG_pc_poultry_plot = ggplot(SSP2EG_pc_poultry, aes(x=Year, y=meatcons))+
   geom_vline(xintercept = 2015, colour = "red")+
   ggtitle("SSP2 - Egypt-like pathway")+
   scale_colour_discrete(name="Legend \n")+
-  scale_y_continuous(limits = c(0, 100))+
+  scale_y_continuous(limits = c(-5, 100))+
   scale_x_continuous(limits = c(1961, 2050))+
   theme(plot.title = element_text(size=9))
 
@@ -970,15 +1065,14 @@ SSP2EG_aggregate_poultry_plot = ggplot(SSP2EG_pc_poultry, aes(x=Year, y=total/10
 
 
 ##
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.79517e-03*value + -3.30934e-07*value*value + 3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Poultry..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  2.79517e-03*pcgdp  + -3.30934e-07*pcgdp*pcgdp +3.14) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Poultry..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1036,15 +1130,14 @@ SSP2VN_aggregate_poultry_plot = ggplot(SSP2VN_pc_poultry, aes(x=Year, y=total/10
 ### PORK ### 
 ## SSP2 ##
 # Scenario 1: China # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 7.98464e-03*value  +  -4.48797e-07*value*value  + 1.62) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  7.98464e-03*pcgdp  + -4.48797e-07*pcgdp*pcgdp +1.62) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1101,15 +1194,14 @@ SSP2CH_aggregate_pork_plot = ggplot(SSP2CH_pc_pork, aes(x=Year, y=total/1000000)
 
 
 # Scenario 2: Brazil # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 2.11823e-03*value  +  -7.03871e-08*value*value  + 1.62) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  2.11823e-03*pcgdp  + -7.03871e-08*pcgdp*pcgdp +1.62) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1165,15 +1257,14 @@ SSP2BR_aggregate_pork_plot = ggplot(SSP2BR_pc_pork, aes(x=Year, y=total/1000000)
 #ggsave("SSP2BR_aggregate_pork_plot.pdf", plot = SSP2BR_aggregate_pork_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
 # Scenario 1: Egypt # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 1.62) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.62) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1181,6 +1272,7 @@ prova = prova[with(prova, order(Year)), ]
 prova = subset(prova, prova$Year > 1961)
 prova$predicted=ifelse(prova$source == "Real", "Historical", "Projected")
 prova = na.omit(prova)
+
 
 SSP2EG_pc_pork = prova
 
@@ -1230,15 +1322,14 @@ SSP2EG_aggregate_pork_plot = ggplot(SSP2EG_pc_pork, aes(x=Year, y=total/1000000)
 
 
 ##
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 1.03485e-02*value  +  -8.51746e-07*value*value  + 1.62) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.03485e-02*pcgdp + -8.51746e-07*pcgdp*pcgdp + 1.62) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Pigmeat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1295,15 +1386,14 @@ SSP2VN_aggregate_pork_plot = ggplot(SSP2VN_pc_pork, aes(x=Year, y=total/1000000)
 
 ### MUTTON ### 
 ## SSP2 ##
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 7.31639e-04*value  +  -3.52518e-08*value*value  + 1.6) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  7.31639e-04*pcgdp + -3.52518e-08*pcgdp*pcgdp + 1.6) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1361,15 +1451,14 @@ SSP2CH_aggregate_mutton_plot = ggplot(SSP2CH_pc_mutton, aes(x=Year, y=total/1000
 
 
 # Scenario 2: Brazil # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.6) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1424,15 +1513,15 @@ SSP2BR_aggregate_mutton_plot = ggplot(SSP2BR_pc_mutton, aes(x=Year, y=total/1000
 
 #ggsave("SSP2BR_aggregate_mutton_plot.pdf", plot = SSP2BR_aggregate_mutton_plot, device = "pdf", width = 20, height = 15, units = "cm", scale=0.6)
 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  1.6) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+#
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons = 1.6) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1491,15 +1580,14 @@ SSP2EG_aggregate_mutton_plot = ggplot(SSP2EG_pc_mutton, aes(x=Year, y=total/1000
 
 ##
 # Scenario 2: Viet Nam # 
-SSP2 = as.data.frame(ssps_countrylevel$SSP2)
-SSP2 = SSP2 %>% group_by(variable) %>% mutate(value=median(value))
-provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  value*-3.78165e-05 + value*value*1.27915e-08 + 3.14) 
-provaccia = provaccia %>% group_by(variable) %>% summarise(meatcons = median(meatcons))
-#africa = subset(pc_gdp_pc_regional, pc_gdp_pc_regional$continent =="Africa")
-africa_edit = africa %>% group_by(Year) %>% summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE))
-provaccia$Year = as.numeric(substr(provaccia$variable, 1, 4))
-provaccia = dplyr::select(provaccia, meatcons, Year)
+SSP2 = subset(ssps, ssps$Scenario == "SSP2")
+provaccia = SSP2 %>% group_by(variable) %>% mutate(meatcons =  -3.78165e-05*pcgdp + 1.27915e-08*pcgdp*pcgdp + 1.6) %>% ungroup()
+africa_edit = africa %>% dplyr::group_by(Year) %>% dplyr::summarise(meatcons=median(Mutton...goat..kg., na.rm = TRUE)) %>% ungroup()
+provaccia = provaccia %>% rename(Year=variable)
+provaccia = provaccia %>% dplyr::select(meatcons, Year)
+provaccia$Year = as.numeric.factor(provaccia$Year)
 provaccia = subset(provaccia, provaccia$Year > 2014)
+provaccia = provaccia %>% dplyr::select(Year, meatcons)
 provaccia$source="SSP"
 africa_edit$source="Real"
 prova = rbind(provaccia, africa_edit)
@@ -1601,41 +1689,95 @@ SSP2_mutton_agg <- plot_grid(SSP2_mutton_agg, legend, ncol = 2, rel_widths = c(0
 ggsave("SSP2_mutton_pc.pdf", plot = SSP2_mutton_pc, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
 ggsave("SSP2_mutton_agg.pdf", plot = SSP2_mutton_agg, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
 
-#####################################
-#5) calculate environmental impacts
-#5.1) GHG EMISSIONS
-#5.1.1) import emission factors per kg by meat type, type of production, and region
+#5) Export scenarios
+SSP2CH_pc_beef$Reference_country="CH"
+SSP2CH_pc_beef$Type="beef"
+SSP2CH_pc_beef = merge(SSP2CH_pc_beef, data.frame(ggplot_build(SSP2CH_aggregate_beef_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2CH_aggregate_beef_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2CH_aggregate_beef_plot....data.....1.....y......, Year = round.ggplot_build.SSP2CH_aggregate_beef_plot....data.....1.....x....), by="Year")
+
+SSP2BR_pc_beef$Reference_country="BR"
+SSP2BR_pc_beef$Type="beef"
+SSP2BR_pc_beef = merge(SSP2BR_pc_beef, data.frame(ggplot_build(SSP2BR_aggregate_beef_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2BR_aggregate_beef_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2BR_aggregate_beef_plot....data.....1.....y......, Year = round.ggplot_build.SSP2BR_aggregate_beef_plot....data.....1.....x....), by="Year")
+
+SSP2EG_pc_beef$Reference_country="EG"
+SSP2EG_pc_beef$Type="beef"
+SSP2EG_pc_beef = merge(SSP2EG_pc_beef, data.frame(ggplot_build(SSP2EG_aggregate_beef_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2EG_aggregate_beef_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2EG_aggregate_beef_plot....data.....1.....y......, Year = round.ggplot_build.SSP2EG_aggregate_beef_plot....data.....1.....x....), by="Year")
 
 
+SSP2VN_pc_beef$Reference_country="VN"
+SSP2VN_pc_beef$Type="beef"
+SSP2VN_pc_beef = merge(SSP2VN_pc_beef, data.frame(ggplot_build(SSP2VN_aggregate_beef_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2VN_aggregate_beef_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2VN_aggregate_beef_plot....data.....1.....y......, Year = round.ggplot_build.SSP2VN_aggregate_beef_plot....data.....1.....x....), by="Year")
 
-#5.1.2) estimating total related emissions
+SSP2CH_pc_pork$Reference_country="CH"
+SSP2CH_pc_pork$Type="pork"
+SSP2CH_pc_pork = merge(SSP2CH_pc_pork, data.frame(ggplot_build(SSP2CH_aggregate_pork_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2CH_aggregate_pork_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2CH_aggregate_pork_plot....data.....1.....y......, Year = round.ggplot_build.SSP2CH_aggregate_pork_plot....data.....1.....x....), by="Year")
 
+SSP2BR_pc_pork$Reference_country="BR"
+SSP2BR_pc_pork$Type="pork"
+SSP2BR_pc_pork = merge(SSP2BR_pc_pork, data.frame(ggplot_build(SSP2BR_aggregate_pork_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2BR_aggregate_pork_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2BR_aggregate_pork_plot....data.....1.....y......, Year = round.ggplot_build.SSP2BR_aggregate_pork_plot....data.....1.....x....), by="Year")
 
-
-
-#5.2) LAND
-#5.2.1)import land-need per kg by different types of productions
-
-
-
-#5.2.2)estimating land-needs
-
-
-
-
-#5.3) ENERGY REQUIREMENTS
-#5.3.1)import energy consumption per kg by meat type and region
+SSP2EG_pc_pork$Reference_country="EG"
+SSP2EG_pc_pork$Type="pork"
+SSP2EG_pc_pork = merge(SSP2EG_pc_pork, data.frame(ggplot_build(SSP2EG_aggregate_pork_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2EG_aggregate_pork_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2EG_aggregate_pork_plot....data.....1.....y......, Year = round.ggplot_build.SSP2EG_aggregate_pork_plot....data.....1.....x....), by="Year")
 
 
-#5.3.2)estimating related emissions
+SSP2VN_pc_pork$Reference_country="VN"
+SSP2VN_pc_pork$Type="pork"
+SSP2VN_pc_pork = merge(SSP2VN_pc_pork, data.frame(ggplot_build(SSP2VN_aggregate_pork_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2VN_aggregate_pork_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2VN_aggregate_pork_plot....data.....1.....y......, Year = round.ggplot_build.SSP2VN_aggregate_pork_plot....data.....1.....x....), by="Year")
 
 
+SSP2CH_pc_poultry$Reference_country="CH"
+SSP2CH_pc_poultry$Type="poultry"
+SSP2CH_pc_poultry = merge(SSP2CH_pc_poultry, data.frame(ggplot_build(SSP2CH_aggregate_poultry_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2CH_aggregate_poultry_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2CH_aggregate_poultry_plot....data.....1.....y......, Year = round.ggplot_build.SSP2CH_aggregate_poultry_plot....data.....1.....x....), by="Year")
 
 
+SSP2BR_pc_poultry$Reference_country="BR"
+SSP2BR_pc_poultry$Type="poultry"
+SSP2BR_pc_poultry = merge(SSP2BR_pc_poultry, data.frame(ggplot_build(SSP2BR_aggregate_poultry_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2BR_aggregate_poultry_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2BR_aggregate_poultry_plot....data.....1.....y......, Year = round.ggplot_build.SSP2BR_aggregate_poultry_plot....data.....1.....x....), by="Year")
 
-#5.4) WATER REQUIREMENTS
-#5.5.1)import water consumption per kg by meat type and region
+SSP2EG_pc_poultry$Reference_country="EG"
+SSP2EG_pc_poultry$Type="poultry"
+SSP2EG_pc_poultry = merge(SSP2EG_pc_poultry, data.frame(ggplot_build(SSP2EG_aggregate_poultry_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2EG_aggregate_poultry_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2EG_aggregate_poultry_plot....data.....1.....y......, Year = round.ggplot_build.SSP2EG_aggregate_poultry_plot....data.....1.....x....), by="Year")
+
+SSP2VN_pc_poultry$Reference_country="VN"
+SSP2VN_pc_poultry$Type="poultry"
+SSP2VN_pc_poultry = merge(SSP2VN_pc_poultry, data.frame(ggplot_build(SSP2VN_aggregate_poultry_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2VN_aggregate_poultry_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2VN_aggregate_poultry_plot....data.....1.....y......, Year = round.ggplot_build.SSP2VN_aggregate_poultry_plot....data.....1.....x....), by="Year")
+
+SSP2CH_pc_mutton$Reference_country="CH"
+SSP2CH_pc_mutton$Type="mutton"
+SSP2CH_pc_mutton = merge(SSP2CH_pc_mutton, data.frame(ggplot_build(SSP2CH_aggregate_mutton_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2CH_aggregate_mutton_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2CH_aggregate_mutton_plot....data.....1.....y......, Year = round.ggplot_build.SSP2CH_aggregate_mutton_plot....data.....1.....x....), by="Year")
+
+SSP2BR_pc_mutton$Reference_country="BR"
+SSP2BR_pc_mutton$Type="mutton"
+SSP2BR_pc_mutton = merge(SSP2BR_pc_mutton, data.frame(ggplot_build(SSP2BR_aggregate_mutton_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2BR_aggregate_mutton_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2BR_aggregate_mutton_plot....data.....1.....y......, Year = round.ggplot_build.SSP2BR_aggregate_mutton_plot....data.....1.....x....), by="Year")
 
 
-#5.5.2)estimating water consumption
+SSP2EG_pc_mutton$Reference_country="EG"
+SSP2EG_pc_mutton$Type="mutton"
+SSP2EG_pc_mutton = merge(SSP2EG_pc_mutton, data.frame(ggplot_build(SSP2EG_aggregate_mutton_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2EG_aggregate_mutton_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2EG_aggregate_mutton_plot....data.....1.....y......, Year = round.ggplot_build.SSP2EG_aggregate_mutton_plot....data.....1.....x....), by="Year")
 
+SSP2VN_pc_mutton$Reference_country="VN"
+SSP2VN_pc_mutton$Type="mutton"
+SSP2VN_pc_mutton = merge(SSP2VN_pc_mutton, data.frame(ggplot_build(SSP2VN_aggregate_mutton_plot)[["data"]][[1]][["y"]]*1000000, round(ggplot_build(SSP2VN_aggregate_mutton_plot)[["data"]][[1]][["x"]])) %>% rename(smoothed_cons = ggplot_build.SSP2VN_aggregate_mutton_plot....data.....1.....y......, Year = round.ggplot_build.SSP2VN_aggregate_mutton_plot....data.....1.....x....), by="Year")
+
+output = do.call("rbind", list(SSP2CH_pc_beef, SSP2BR_pc_beef, SSP2EG_pc_beef, SSP2VN_pc_beef,SSP2CH_pc_pork, SSP2BR_pc_pork, SSP2EG_pc_pork, SSP2VN_pc_pork,SSP2CH_pc_poultry, SSP2BR_pc_poultry, SSP2EG_pc_poultry, SSP2VN_pc_poultry, SSP2CH_pc_mutton, SSP2BR_pc_mutton, SSP2EG_pc_mutton, SSP2VN_pc_mutton))
+
+output = output %>% dplyr::select(Year, Reference_country, Scenario, Type, total, smoothed_cons)
+
+output = subset(output, output$Year>2014 & output$Year<2051)
+
+output$smoothed_cons_Mt= output$smoothed_cons / 1000000
+
+write.csv(output, "D:/Dropbox (FEEM)/Meat Africa/Repo/meatSSA/Consumption/output.csv")
+
+total_output_smoothed_SSP2 = ggplot(output)+
+  theme_gray()+
+  ggtitle('SSP2, meat consumption in sub-Saharan Africa')+
+  geom_line(aes(x=Year,y=smoothed_cons/1000000,color=Reference_country), size=1)+
+  facet_wrap(~Type, labeller = as_labeller(meat_names))+
+  ylab('Total consumption (Mt)')+
+  scale_colour_discrete(name="Reference country")
+
+ggsave("SSP2_all.pdf", plot = total_output_smoothed_SSP2, device = "pdf", width = 40, height = 30, units = "cm", scale=0.4)
+
+#ALL SSPs in a unique figure
+#plot_grid(total_output_smoothed_SSP1, total_output_smoothed_SSP2, total_output_smoothed_SSP3, total_output_smoothed_SSP4, total_output_smoothed_SSP, nrow = 2, ncol = 2)
