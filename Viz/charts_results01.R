@@ -27,7 +27,7 @@ p1 <- ggplot(dataset)+
   #scale_y_continuous(limits = c(0,2),breaks = 1)+
   theme(legend.position="top")
 
-ggsave("figure03.png",p1,device="png",width = 3*2.2, height = 2*2.2,dpi=300)
+ggsave("figure04a.png",p1,device="png",width = 3*2.2, height = 2*2.2,dpi=300)
 
 
 # Analysis on CO2 emissions
