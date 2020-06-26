@@ -1,4 +1,4 @@
-setwd('D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Meat substitutes')
+setwd('D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo/meatSSA/Meat substitutes')
 
 scenarios <- readxl::read_excel("Data.xlsx", sheet = "Scenarios")
 impacts <- readxl::read_excel("Data.xlsx", sheet = "Data")
@@ -9,9 +9,9 @@ impacts <- readxl::read_excel("Data.xlsx", sheet = "Data")
 library(tidyverse)
 library(scatterpie)
 
-setwd('D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo')
+setwd('D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo/meatSSA')
 
-dataset <- read_csv("Final_results_new_v2.csv")
+dataset <- read_csv("Meat substitutes/Final_results_tot.csv")
 
 dataset <- tidyr::gather(dataset, "Year", "Value", 4:7)
 
@@ -58,8 +58,6 @@ dataset = merge(dataset2, dataset3, by="percentile", all.x = T)
 dataset$Type = as.character(dataset$Type)
 
 dataset$value_alt = NA
-
-# fix magnitude
 
 #water#
 dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.9 + (mean(impacts$LCA_l_bluewater_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
@@ -124,24 +122,24 @@ dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & datas
 
 
 #energy#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==25 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==25 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==50 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 
-dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==10 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==25 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==25 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & dataset$Impact=="Electricity [TJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 #eutrophication#
 dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
@@ -177,6 +175,8 @@ dataset_summarised = gather(dataset_summarised, "type", "value_impact", c(4,5))
 
 dataset_summarised$type <- ifelse(dataset_summarised$type=="value.x", "Baseline", "Subst. adoption")
 
+dataset_summarised = subset(dataset_summarised, dataset_summarised$Impact!="Electricity [TWh]")
+
 ggplot(dataset_summarised, aes(x=as.factor(Adoption/100), y=value_impact, fill=type))+
   geom_boxplot(alpha=0.75)+ 
   facet_wrap(~Impact, scales = "free_y")+
@@ -184,31 +184,30 @@ ggplot(dataset_summarised, aes(x=as.factor(Adoption/100), y=value_impact, fill=t
   ylab("Impact specfic unit")+
   scale_x_discrete(labels = c("10%", "25%", "50%"))+
   ggtitle("Environmental benefit of meat substitutes adoption (grams of protein equivalent, year 2050)")+
-  scale_fill_discrete(name="Scenario")
+  scale_fill_discrete(name="Scenario")+
+  theme(legend.position = c(0.85, 0.2))
 
 ggsave("substitutes.png", last_plot(), device = "png", scale=1.25)
 
 ### 
 
-# plot #
-
-### WARNING: need meat-specific environmental impact results to plot this ###
-
-library(reshape2)
-dataset_bytype = gather(dataset, "scenario", "value_impact", c(3,8))
-
-dataset_bytype = subset(dataset_bytype, dataset$Type!="mutton")
-
-dataset_bytype$scenario <- ifelse(dataset_bytype$scenario=="value.x", "Baseline", "Subst. adoption")
-dataset_bytype$Type <- ifelse(dataset_bytype$Type=="beef", "Beef",  ifelse(dataset_bytype$Type=="pork", "Pork", "Poultry"))
-
-ggplot(dataset_bytype, aes(x=as.factor(Adoption/100), y=value_impact, fill=scenario))+
-  geom_boxplot(alpha=0.75)+ 
-  facet_wrap(Type~Impact, scales = "free_y")+
-  xlab("Substitutes adoption rate")+
-  ylab("Impact specfic unit")+
-  scale_x_discrete(labels = c("10%", "25%", "50%"))+
-  ggtitle("Environmental benefit of meat substitutes adoption")+
-  scale_fill_discrete(name="Category")
-
-ggsave("substitutes_SI.png", last_plot(), device = "png", scale=1.5)
+# ### WARNING: need meat-specific environmental impact results to plot this ###
+# 
+# library(reshape2)
+# dataset_bytype = gather(dataset, "scenario", "value_impact", c(3,8))
+# 
+# dataset_bytype = subset(dataset_bytype, dataset$Type!="mutton")
+# 
+# dataset_bytype$scenario <- ifelse(dataset_bytype$scenario=="value.x", "Baseline", "Subst. adoption")
+# dataset_bytype$Type <- ifelse(dataset_bytype$Type=="beef", "Beef",  ifelse(dataset_bytype$Type=="pork", "Pork", "Poultry"))
+# 
+# ggplot(dataset_bytype, aes(x=as.factor(Adoption/100), y=value_impact, fill=scenario))+
+#   geom_boxplot(alpha=0.75)+ 
+#   facet_wrap(Type~Impact, scales = "free_y")+
+#   xlab("Substitutes adoption rate")+
+#   ylab("Impact specfic unit")+
+#   scale_x_discrete(labels = c("10%", "25%", "50%"))+
+#   ggtitle("Environmental benefit of meat substitutes adoption")+
+#   scale_fill_discrete(name="Category")
+# 
+# ggsave("substitutes_SI.png", last_plot(), device = "png", scale=1.5)
