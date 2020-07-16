@@ -60,11 +60,11 @@ dataset$Type = as.character(dataset$Type)
 dataset$value_alt = NA
 
 #water#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.9 + (mean(impacts$LCA_l_bluewater_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.9 + (mean(impacts$LCA_l_bluewater_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.75 + (mean(impacts$LCA_l_bluewater_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.75 + (mean(impacts$LCA_l_bluewater_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.5 + (mean(impacts$LCA_l_bluewater_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.5 + (mean(impacts$LCA_l_bluewater_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.9 + (mean(impacts$LCA_l_bluewater_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
@@ -81,11 +81,11 @@ dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & datas
 
 
 #land#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.9 + (mean(impacts$LCA_m2_y_per_kg[2:6])*mean(dataset$value.y)*mean(impacts$prot_equiv_factor[2:6])*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.9 + (mean(impacts$LCA_m2_y_per_kg[2:7])*mean(dataset$value.y)*mean(impacts$prot_equiv_factor[2:7])*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.75 + (mean(impacts$LCA_m2_y_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.75 + (mean(impacts$LCA_m2_y_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.5 + (mean(impacts$LCA_m2_y_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.5 + (mean(impacts$LCA_m2_y_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.9 + (mean(impacts$LCA_m2_y_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
@@ -101,11 +101,11 @@ dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==25 & datas
 dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & dataset$Impact=="Land [Mkm2]", dataset$value.x*0.5 + (mean(impacts$LCA_m2_y_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 #emissions#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.75 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.75 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.5 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.5 + (mean(impacts$LCA_kg_CO2eq_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="GHG [GtonCO2_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_kg_CO2eq_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
@@ -122,11 +122,11 @@ dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & datas
 
 
 #energy#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.75 + (mean(impacts$LCA_MJ_ton_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.9 + (mean(impacts$LCA_MJ_ton_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
@@ -142,11 +142,11 @@ dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==25 & datas
 dataset$value_alt = ifelse(dataset$Type == "pork" & dataset$Adoption==50 & dataset$Impact=="Fossil Fuels [EJ]", dataset$value.x*0.5 + (mean(impacts$LCA_MJ_ton_per_kg[8])*mean(impacts$prot_equiv_factor[8])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 #eutrophication#
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.75 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==25 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.75 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.25)*1e-12, dataset$value_alt)
 
-dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.5 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:6])*mean(impacts$prot_equiv_factor[2:6])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
+dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==50 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.5 + (mean(impacts$LCA_g_PO4equiv_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.5)*1e-12, dataset$value_alt)
 
 dataset$value_alt = ifelse(dataset$Type == "poultry" & dataset$Adoption==10 & dataset$Impact=="Eutrop. [MtonPO4_eq]", dataset$value.x*0.9 + (mean(impacts$LCA_g_PO4equiv_per_kg[1])*mean(impacts$prot_equiv_factor[1])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
 
@@ -188,6 +188,8 @@ ggplot(dataset_summarised, aes(x=as.factor(Adoption/100), y=value_impact, fill=t
   theme(legend.position = c(0.85, 0.2))
 
 ggsave("substitutes.png", last_plot(), device = "png", scale=1.25)
+
+dataset_summarised %>% filter(Adoption==50 & percentile==50) %>% group_by(Impact) %>% summarise(value=value_impact[1]/value_impact[2])
 
 ### 
 
