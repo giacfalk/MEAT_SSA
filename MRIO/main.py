@@ -30,35 +30,22 @@ shares_tot_demand = Tot_demand_Africa/(Tot_demand_Africa.sum())
 e_meat = vH_11.e_dis.groupby(sort=False, axis=0, level=1).sum().loc[:, (slice(None), Meat_acti, slice(None), slice(None))]
 #%% Footprints Chart
 
-Region = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East']
-ext = 'Land use, other land for woodfuel'
+ext = ['Land use, arable land','Greenhouse gasses','Eutrophication','Fossil Fuels']
 reg = ['BR','CN','DE','IT','US','ZA','WA','WF','WM']
 reg_lab = ['Brazil','China','Germany','Italy','USA','South Africa','RoW - America', 'RoW - Africa', 'RoW - Middle East']
 mea = ['Cattle','Pigs','Poultry']
-plt.style.use(['ggplot'])
-wd = 0.2
-d = 0.2
-fig, ax = plt.subplots(figsize=(15,6))
 
-xpos = np.arange(len(reg))
-ax.set_title('Environmental impact per ton of product')
-ax.bar(xpos-d, f_meat.loc[ext, (reg, Meat_acti[0])], width=wd)
-ax.bar(xpos, f_meat.loc[ext, (reg, Meat_acti[1])], width=wd)
-ax.bar(xpos+d, f_meat.loc[ext, (reg, Meat_acti[2])], width=wd)
-plt.xticks(xpos, reg_lab)
-ax.legend(mea)
-ax.set_ylabel(ext)
-
+pyioa.plot_footprints(footprint=f_meat, regions_code=reg, regions_name=reg_lab, extensions=ext, units=['ha','tonCO2_eq','tonPO4_eq','GJ'], products=Meat_acti)
 #%% These are all the dimensions of the scenarios
 
 Year = [2020, 2030, 2040, 2050]
 Scenario = ['SSP1', 'SSP2','SSP3','SSP4','SSP5']
-Region = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East','Median']
+Region = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East'] # addd 'Median' when updated
 Mod = ['pessimistic', 'baseline','optimistic']	
 Extensions = ['Land [Mkm2]', 'Water Cons. Blue [BCM]', 'Water Cons. Green [BCM]', 'Fossil Fuels [EJ]','Electricity [TWh]', 'GHG [GtonCO2_eq]', 'CO2_f [GtonCO2_eq]','CH4 [GtonCO2_eq]','N2O [GtonCO2_eq]','CO2_b [GtonCO2_eq]','Eutrop. [MtonPO4_eq]']
 Res = pd.DataFrame(0, index=pd.MultiIndex.from_product([Extensions, Region, Scenario, Mod]), columns=pd.MultiIndex.from_product([Year]))
 
-Projections = pd.read_csv('all_projections_2050_SSAfrica.csv', index_col =[0,1,2,4])
+Projections = pd.read_csv('Inputs/all_projections_2050_SSAfrica_new.csv', index_col =[0,1,2,4])
 
 Y_s = vH_11.Y_dis.copy()
 X = vH_11.X_dis
@@ -67,8 +54,8 @@ vH_11.agg('Aggregations/Aggregation_results.xlsx')
 
 # Preparing leontief matrices
 
-ReferenceScenario = pd.read_excel('Scenarios.xlsx', sheet_name='Reference countries', index_col=0)
-ChangeRate =  pd.read_excel('Scenarios.xlsx', sheet_name='Change rates_v2', index_col=0)
+ReferenceScenario = pd.read_excel('Inputs/Scenarios.xlsx', sheet_name='Reference countries', index_col=0)
+ChangeRate =  pd.read_excel('Inputs/Scenarios.xlsx', sheet_name='Change rates_v2', index_col=0)
 
 # Build the Frame of Reference
 RC = ReferenceScenario.loc['Frame of reference'].ref # Reference Scenario         
@@ -126,7 +113,7 @@ for ProjYear in Year:
             for mod in Mod:
                 NewDemand = Projections.loc[(ProjYear, Scen, RefCou), :].dry_ton
                 Y_dis_s = vH_11.Y_dis.copy()
-                shares = pd.read_excel('Import_shares.xlsx', sheet_name='Scenarios_dis', index_col=[0]) # toglilo dal loop
+                shares = pd.read_excel('Inputs/Import_shares.xlsx', sheet_name='Scenarios_dis', index_col=[0]) # toglilo dal loop
                 RC = ReferenceScenario.loc[RefCou].ref
                 C_WF = ChangeRate.loc['WF',ProjYear]
                 C_ref = ChangeRate.loc['ref',ProjYear]
@@ -177,7 +164,7 @@ for ProjYear in Year:
                 Res.loc[('CO2_b [GtonCO2_eq]', RefCou, Scen, mod), (ProjYear)] = res_dis.groupby(level=1, sort=False).sum().loc['CO2_b [tonCO2_eq]'] / 10**9
                 Res.loc[('Eutrop. [MtonPO4_eq]', RefCou, Scen, mod), (ProjYear)] = res_dis.groupby(level=1, sort=False).sum().loc['EUT [tonPO4_eq]'] / 10**6
                 
-Res.to_csv('Final_results_tot_vecchi.csv')
+Res.to_csv('Results/Final_results_tot_new.csv')
 # (tot, cow, pig, pou)
 
 #%%
@@ -234,4 +221,4 @@ Comparison.drop(Comparison.tail(1).index,inplace=True)
 f = plt.figure()
 Comparison.T.plot(kind='bar', stacked=True, title='Fossil Fuels [GJ] use by region and sector with Production-, Input- and Consumption-based approach', figsize=(15,12), colormap='terrain')
 plt.legend(loc='center right', bbox_to_anchor=(1.25,0.5))
-Comparison.to_csv('Use_of_FF.csv')
+Comparison.to_csv('Results/Use_of_FF_new.csv')
