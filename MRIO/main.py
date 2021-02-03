@@ -40,7 +40,7 @@ pyioa.plot_footprints(footprint=f_meat, regions_code=reg, regions_name=reg_lab, 
 
 Year = [2020, 2030, 2040, 2050]
 Scenario = ['SSP1', 'SSP2','SSP3','SSP4','SSP5']
-Region = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East'] # addd 'Median' when updated
+Region = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East'] # add 'Median' when updated
 Mod = ['pessimistic', 'baseline','optimistic']	
 Extensions = ['Land [Mkm2]', 'Water Cons. Blue [BCM]', 'Water Cons. Green [BCM]', 'Fossil Fuels [EJ]','Electricity [TWh]', 'GHG [GtonCO2_eq]', 'CO2_f [GtonCO2_eq]','CH4 [GtonCO2_eq]','N2O [GtonCO2_eq]','CO2_b [GtonCO2_eq]','Eutrop. [MtonPO4_eq]']
 Res = pd.DataFrame(0, index=pd.MultiIndex.from_product([Extensions, Region, Scenario, Mod]), columns=pd.MultiIndex.from_product([Year]))

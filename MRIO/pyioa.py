@@ -83,7 +83,7 @@ class mrio:
         self.E_agg = self.E_agg.T.set_index(self.Z_index).groupby(axis=0, level=[0,1], sort=False).sum().T
 
     
-def plot_footprints(footprint, regions_code, regions_name, extensions, units, products, title='Envirnomental footprint per ton of product'):
+def plot_footprints(footprint, regions_code, regions_name, extensions, units, products, prod_unit, title='Envirnomental footprint per unit of product', file_name=''):
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     
@@ -98,12 +98,11 @@ def plot_footprints(footprint, regions_code, regions_name, extensions, units, pr
                 sl = True
             else:
                 sl = False
-                
-            fig.add_trace(go.Bar(name=j, legendgroup=j, x=regions_name, y=footprint.loc[e,(regions_code,j)].values, marker_color=colors[products.index(j)], showlegend=sl), row=extensions.index(e)+1, col=1)
+            fig.add_trace(go.Bar(name=j+' ['+prod_unit.loc[j]+']', legendgroup=j, x=regions_name, y=footprint.loc[e,(regions_code,'Sector',j)].values, marker_color=colors[products.index(j)], showlegend=sl), row=extensions.index(e)+1, col=1)
             
     fig.update_layout(barmode='group', font_family='Palatino Linotype', title=title)
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
-    fig.write_html(r'Results/Footprints.html')
+    fig.write_html(r'Results/Footprints'+file_name+'.html')
     
 def plot_projections(projections,what,title='Projections'):
     import plotly.graph_objects as go
@@ -132,7 +131,6 @@ def plot_projections(projections,what,title='Projections'):
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
     fig.write_html(r'Inputs/'+title+'.html')
     
-    
-    
+# def plot_results()
 
         
