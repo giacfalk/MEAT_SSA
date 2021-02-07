@@ -44,8 +44,11 @@ for i in list(ext_add.keys()):
 # Adding them to the original table and re-calculating
 Original.add_extensions(add, 'E', **ext_add)
 
+#%% Get Excel aggregation file
+Original.get_aggregation_excel(levels=['Region','Consumption category'], path=r'Aggregations\Database_Region_Renaming.xlsx')
+
 #%% Renaming the regions name and condensing final demand categories
-Original.aggregate(drop=True, levels='all',path=r'Aggregations\Rename_Regions.xlsx')
+Original.aggregate(drop=True, levels=['Region','Consumption category'], path=r'Aggregations\Database_Region_Renaming.xlsx')
 #%% Writing the database in txt
 
 # Enter the path of where you want to store your local copy of hybrid EXIOBASE 3.3 in txt

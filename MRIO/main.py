@@ -35,7 +35,7 @@ reg = ['BR','CN','DE','IT','US','ZA','WA','WF','WM']
 reg_lab = ['Brazil','China','Germany','Italy','USA','South Africa','RoW - America', 'RoW - Africa', 'RoW - Middle East']
 mea = ['Cattle','Pigs','Poultry']
 
-pyioa.plot_footprints(footprint=f_meat, regions_code=reg, regions_name=reg_lab, extensions=ext, units=['ha','tonCO2_eq','tonPO4_eq','GJ'], products=Meat_acti)
+# pyioa.plot_footprints(footprint=f_meat, regions_code=reg, regions_name=reg_lab, extensions=ext, units=['ha','tonCO2_eq','tonPO4_eq','GJ'], products=Meat_acti)
 #%% These are all the dimensions of the scenarios
 
 Year = [2020, 2030, 2040, 2050]
@@ -45,7 +45,7 @@ Mod = ['pessimistic', 'baseline','optimistic']
 Extensions = ['Land [Mkm2]', 'Water Cons. Blue [BCM]', 'Water Cons. Green [BCM]', 'Fossil Fuels [EJ]','Electricity [TWh]', 'GHG [GtonCO2_eq]', 'CO2_f [GtonCO2_eq]','CH4 [GtonCO2_eq]','N2O [GtonCO2_eq]','CO2_b [GtonCO2_eq]','Eutrop. [MtonPO4_eq]']
 Res = pd.DataFrame(0, index=pd.MultiIndex.from_product([Extensions, Region, Scenario, Mod]), columns=pd.MultiIndex.from_product([Year]))
 
-Projections = pd.read_csv('Inputs/all_projections_2050_SSAfrica_new.csv', index_col =[0,1,2,4])
+Projections = pd.read_csv('Inputs/From Demand Model/all_projections_2050_SSAfrica_old.csv', index_col =[0,1,2,4])
 
 Y_s = vH_11.Y_dis.copy()
 X = vH_11.X_dis
@@ -54,8 +54,8 @@ vH_11.agg('Aggregations/Aggregation_results.xlsx')
 
 # Preparing leontief matrices
 
-ReferenceScenario = pd.read_excel('Inputs/Scenarios.xlsx', sheet_name='Reference countries', index_col=0)
-ChangeRate =  pd.read_excel('Inputs/Scenarios.xlsx', sheet_name='Change rates_v2', index_col=0)
+ReferenceScenario = pd.read_excel('Inputs/Support information for MRIO/Scenarios.xlsx', sheet_name='Reference countries', index_col=0)
+ChangeRate =  pd.read_excel('Inputs/Support information for MRIO/Scenarios.xlsx', sheet_name='Change rates_v2', index_col=0)
 
 # Build the Frame of Reference
 RC = ReferenceScenario.loc['Frame of reference'].ref # Reference Scenario         
@@ -77,8 +77,8 @@ E_change = pd.DataFrame(0, index=e_r.index, columns=Year)
 
 #
 for y in Year:
-    C_WF = ChangeRate.loc['WF',y]
-    C_ref = ChangeRate.loc['ref',y]
+    C_WF = ChangeRate.loc['RoW Africa',y]
+    C_ref = ChangeRate.loc['Ref',y]
     zWF_sum = zWF.sum(axis=0)
     zRC_sum = zRC.sum(axis=0)
 
@@ -99,12 +99,12 @@ ax.set_ylabel('Percentual change with respect to baseline [%]')
 
 # Chosen scenario if runall = False
 
-runall = True
+runall = False
 
 if runall == False:
     Year = [2050]
-    Scenario = ['SSP2']
-    Region = ['Median']
+    Scenario = ['SSP5']
+    Region = ['North Africa and Middle East']
     Mod = ['baseline']
 
 for ProjYear in Year:
@@ -113,18 +113,18 @@ for ProjYear in Year:
             for mod in Mod:
                 NewDemand = Projections.loc[(ProjYear, Scen, RefCou), :].dry_ton
                 Y_dis_s = vH_11.Y_dis.copy()
-                shares = pd.read_excel('Inputs/Import_shares.xlsx', sheet_name='Scenarios_dis', index_col=[0]) # toglilo dal loop
+                shares = pd.read_excel('Inputs/Support information for MRIO/Import_shares.xlsx', sheet_name='Scenarios_dis', index_col=[0]) # toglilo dal loop
                 RC = ReferenceScenario.loc[RefCou].ref
-                C_WF = ChangeRate.loc['WF',ProjYear]
-                C_ref = ChangeRate.loc['ref',ProjYear]
+                C_WF = ChangeRate.loc['RoW Africa',ProjYear]
+                C_ref = ChangeRate.loc['Ref',ProjYear]
                 eRC = vH_11.e_dis.loc[:,RC]
                 e_1 = vH_11.e_dis.copy()
                 eWF = vH_11.e_dis.loc[:,'WF']
                 e_1.loc[:,'WF'] = C_WF*eWF.values+C_ref*eRC.values
                 
                 RC = ReferenceScenario.loc[RefCou].ref # Reference Scenario         
-                C_WF = ChangeRate.loc['WF',ProjYear]
-                C_ref = ChangeRate.loc['ref',ProjYear]
+                C_WF = ChangeRate.loc['RoW Africa',ProjYear]
+                C_ref = ChangeRate.loc['Ref',ProjYear]
                 eRC = vH_11.e_dis.loc[:,RC]      
                 e_r.loc[:,'WF'] = C_WF*eWF.values+C_ref*eRC.values
                 E_r = pymrio.calc_F(e_r, X)
@@ -164,7 +164,7 @@ for ProjYear in Year:
                 Res.loc[('CO2_b [GtonCO2_eq]', RefCou, Scen, mod), (ProjYear)] = res_dis.groupby(level=1, sort=False).sum().loc['CO2_b [tonCO2_eq]'] / 10**9
                 Res.loc[('Eutrop. [MtonPO4_eq]', RefCou, Scen, mod), (ProjYear)] = res_dis.groupby(level=1, sort=False).sum().loc['EUT [tonPO4_eq]'] / 10**6
                 
-Res.to_csv('Results/Final_results_tot_new.csv')
+Res.to_csv('Results/old_code_Final_results_tot_new.csv')
 # (tot, cow, pig, pou)
 
 #%%
