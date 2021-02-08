@@ -129,3 +129,39 @@ def plot_results(result_file_name):
     fig.update_layout(font_family='Palatino Linotype', title='Environmental impacts associated with meat demand increase in Sub-Saharian Africa')
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
     fig.write_html(r'Results/'+result_file_name+'_plot.html')
+
+def assess_impact(Case, Ref, agg_path, levels=['Sector','Region'], ext=''):
+    import MARIO
+    import copy
+    import pandas as pd
+    
+    Delta = copy.deepcopy(Case)
+    Delta.X = Case.X-Ref.X.values
+    Delta.Y = (Case.Y-Ref.Y)
+    Delta.E = MARIO.calc_E(Delta.e, Delta.X)
+    Delta.F = MARIO.calc_F(MARIO.calc_f(Delta.e, MARIO.calc_w(Delta.z)), Delta.Y.sum(axis=1))
+    
+    new_sec_index = list(pd.read_excel(agg_path, sheet_name=levels[0]).iloc[:,1])
+    new_reg_index = list(pd.read_excel(agg_path, sheet_name=levels[1]).iloc[:,1])
+    new_col_index = pd.MultiIndex.from_product([new_reg_index,new_sec_index])
+    Delta.E.columns = new_col_index
+    Delta.F.columns = new_col_index
+    Delta.Z.columns, Delta.Z.index = new_col_index, new_col_index
+    Delta.E = Delta.E.groupby(level=[0,1], axis=1).sum()
+    Delta.F = Delta.F.groupby(level=[0,1], axis=1).sum()
+    Delta.Z = Delta.Z.groupby(level=[0,1], axis=0).sum()
+    Delta.Z = Delta.Z.groupby(level=[0,1], axis=1).sum()
+    Delta.Y = Delta.Y.groupby(level=[0,1], axis=0).sum()
+    
+    if ext !='':
+        deltaE = Delta.E.loc[ext]
+        deltaF = Delta.F.loc[ext]
+    else:
+        deltaE = Delta.E.groupby(level=[0,1], axis=1).sum()
+        deltaF = Delta.F.groupby(level=[0,1], axis=1).sum()
+    
+    return deltaE,deltaF
+    
+    
+    
+    

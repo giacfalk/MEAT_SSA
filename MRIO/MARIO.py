@@ -108,7 +108,7 @@ for yea in Years:
     
 
 #%% Running all the Africa Meat (AM) cases
-runall = True # In case you need to run a subset of the possible cases
+runall = False # In case you need to run a subset of the possible cases
 
 if runall == False:
     Res_name = '' # Insert your new name for the result in case you want to print it
@@ -165,4 +165,7 @@ if Res_name != '':
 for i in ['cba','CBA','PBA','pba']:
     MARIO.plot_footprints(AM, i, Extensions, Reg_comp, Meat, project_name='/Impacts/Case_'+str(yea)+'_'+sce+'_'+reg+'_')                  
  
+#%% Plot impact
+
+footprint = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels')
 
