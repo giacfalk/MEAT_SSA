@@ -90,4 +90,42 @@ def plot_projections(projections,what,title='Projections'):
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
     fig.write_html(r'Inputs/From Demand Model/'+title+'.html')
     
-        
+def plot_results(result_file_name):
+    import pandas as pd 
+    result = pd.read_csv(r'Results/'+result_file_name+'.csv', index_col=[0,1,2])
+    
+    Ext = ['Land [Mkm2]', 'Water Cons. Blue [BCM]', 'Water Cons. Green [BCM]', 'Fossil Fuels [EJ]','Electricity [TWh]', 'GHG [GtonCO2_eq]', 
+                  'CO2_f [GtonCO2_eq]','Eutrop. [MtonPO4_eq]']
+    
+    reg_scen = list(dict.fromkeys(list(result.index.get_level_values(1))))
+    reg_scen.remove('Reference Region')
+    ssp_scen = list(dict.fromkeys(list(result.index.get_level_values(2))))
+    ssp_scen.remove('SSP')
+    years = list(result.columns)
+    
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    
+    
+    fig = make_subplots(rows=2, cols=4, subplot_titles=Ext, vertical_spacing=0.05)
+    colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000']
+    sl = True
+    row_= 1
+    col_= 1
+    for e in Ext:
+        for r in reg_scen:
+            for s in ssp_scen:
+                if Ext.index(e)>3:
+                    row_ = 2
+                    col_ = -3
+                fig.add_trace(go.Scatter(x=years,
+                                         y=result.loc[(e,r,s)],
+                                         mode='lines+markers',
+                                         marker_color=colors[ssp_scen.index(s)],
+                                         showlegend=sl,
+                                         legendgroup=s,
+                                         name=str(s)+' - '+str(r)), row=row_, col=col_+Ext.index(e))
+            
+    fig.update_layout(font_family='Palatino Linotype', title='Environmental impacts associated with meat demand increase in Sub-Saharian Africa')
+    fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
+    fig.write_html(r'Results/'+result_file_name+'_plot.html')

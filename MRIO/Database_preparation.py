@@ -13,7 +13,7 @@ import MARIO
 import time
 import pandas as pd
 
-#%% Importing the original database downloaded from https://www.exiobase.eu/index.php/data-download/exiobase3hyb
+#%% Importing the original database downloaded from https://www.exiobase.eu/index.php/data-download/exiobase3hyb (usually takes 10 minutes)
 
 # Enter the path of your local copy of hybrid EXIOBASE 3.3
 read_from = r'C:\Users\Gollinucci\Desktop\Nicolò\Lavoro\FEEM\Databases\EXIOBASE_3.3.18_hsut_2011'
