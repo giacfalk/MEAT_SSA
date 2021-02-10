@@ -130,7 +130,7 @@ def plot_results(result_file_name):
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
     fig.write_html(r'Results/'+result_file_name+'_plot.html')
 
-def assess_impact(Case, Ref, agg_path, levels=['Sector','Region'], ext=''):
+def assess_impact(Case, Ref, agg_path, sec, levels=['Sector','Region'], ext=''):
     import MARIO
     import copy
     import pandas as pd
@@ -138,29 +138,35 @@ def assess_impact(Case, Ref, agg_path, levels=['Sector','Region'], ext=''):
     Delta = copy.deepcopy(Case)
     Delta.X = Case.X-Ref.X.values
     Delta.Y = (Case.Y-Ref.Y)
-    Delta.E = MARIO.calc_E(Delta.e, Delta.X)
+    Delta.E = MARIO.calc_E(Delta.e, Delta.X) # The main matrices are calculated before aggregating
     Delta.F = MARIO.calc_F(MARIO.calc_f(Delta.e, MARIO.calc_w(Delta.z)), Delta.Y.sum(axis=1))
+    Delta.Z = Case.Z-Ref.Z.values
     
+    # Reindexing before aggregation
     new_sec_index = list(pd.read_excel(agg_path, sheet_name=levels[0]).iloc[:,1])
     new_reg_index = list(pd.read_excel(agg_path, sheet_name=levels[1]).iloc[:,1])
     new_col_index = pd.MultiIndex.from_product([new_reg_index,new_sec_index])
     Delta.E.columns = new_col_index
     Delta.F.columns = new_col_index
-    Delta.Z.columns, Delta.Z.index = new_col_index, new_col_index
+    Delta.Z.columns, Delta.Z.index, Delta.X.index, Delta.Y.index = new_col_index, new_col_index, new_col_index, new_col_index
     Delta.E = Delta.E.groupby(level=[0,1], axis=1).sum()
     Delta.F = Delta.F.groupby(level=[0,1], axis=1).sum()
     Delta.Z = Delta.Z.groupby(level=[0,1], axis=0).sum()
     Delta.Z = Delta.Z.groupby(level=[0,1], axis=1).sum()
     Delta.Y = Delta.Y.groupby(level=[0,1], axis=0).sum()
+    Delta.X = Delta.X.groupby(level=[0,1], axis=0).sum()
     
-    if ext !='':
-        deltaE = Delta.E.loc[ext]
-        deltaF = Delta.F.loc[ext]
-    else:
-        deltaE = Delta.E.groupby(level=[0,1], axis=1).sum()
-        deltaF = Delta.F.groupby(level=[0,1], axis=1).sum()
+    Delta.b = MARIO.calc_b(Delta.Z, Delta.X)
+    Delta.y = MARIO.calc_y(Delta.Y.sum(axis=1), Delta.X)
     
-    return deltaE,deltaF
+    deltaE = Delta.E.loc[ext]
+    deltaF = Delta.F.loc[ext]
+    deltaIBA = (Delta.b.loc[(slice(None),sec),:].T*Delta.E.loc[ext,(slice(None),sec)].values).sum(axis=1)
+
+    imp = pd.concat([deltaE,deltaIBA,deltaF], axis=1)
+    imp.columns = ['PBA','IBA','CBA']
+    
+    return imp
     
     
     

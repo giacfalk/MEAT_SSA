@@ -139,6 +139,7 @@ for yea in Years:
             AM.e, Reference.e = ee[str(reg)+' - '+str(yea)], ee[str(reg)+' - '+str(yea)] # Update case-specific satellite account coefficients matrices
                     
             AM.X = MARIO.calc_X_from_w(AM.w, AM.Y.sum(axis=1)) # Compute new production
+            AM.Z, Reference.Z = MARIO.calc_Z(AM.z, AM.X), MARIO.calc_Z(Reference.z, Reference.X) # and the new matrix of transaction
             AM.E, Reference.E = MARIO.calc_E(AM.e, AM.X), MARIO.calc_E(Reference.e, Reference.X) # Compute new enivronmental transactions
             AM.f = MARIO.calc_f(AM.e, AM.w) # Compute new footprints
             AM.F = MARIO.calc_F(AM.f, AM.Y.sum(axis=1)) # Compute new footprints
@@ -165,7 +166,8 @@ if Res_name != '':
 for i in ['cba','CBA','PBA','pba']:
     MARIO.plot_footprints(AM, i, Extensions, Reg_comp, Meat, project_name='/Impacts/Case_'+str(yea)+'_'+sce+'_'+reg+'_')                  
  
-#%% Plot impact
+#%% Plot impact of a specific sector and environmental extension
 
-footprint = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels')
+f = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels')
+Results.to_csv('Results/'+Res_name+'_Fossil_Fuel_allocation - Case '+yea+'_'+sce+'_'+reg+'.csv')
 
