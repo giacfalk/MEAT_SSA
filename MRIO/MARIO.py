@@ -113,8 +113,8 @@ runall = False # In case you need to run a subset of the possible cases
 if runall == False:
     Res_name = '' # Insert your new name for the result in case you want to print it
     Years = [2050] # Select your years,...
-    Scenarios = ['SSP5'] # ... SSPs...
-    Regions = ['Central Europe'] #... and reference regions
+    Scenarios = ['SSP4'] # ... SSPs...
+    Regions = ['East Asia'] #... and reference regions
 
 Results = pd.DataFrame(0, index=pd.MultiIndex.from_product([Result_Extensions, Regions, Scenarios], names=['Environmental Extension','Reference Region','SSP']), columns=pd.MultiIndex.from_product([Years]))
 
@@ -169,5 +169,5 @@ for i in ['cba','CBA','PBA','pba']:
 #%% Plot impact of a specific sector and environmental extension
 
 f = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels')
-f.to_csv('Results/Fossil_Fuel_allocation - Case '+str(yea)+'_'+sce+'_'+reg+'.csv')
+f.to_csv('Results/Allocation of total Fossil Fuel [GJ] - Case '+str(yea)+'_'+sce+'_'+reg+'.csv')
 
