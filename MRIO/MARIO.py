@@ -169,5 +169,5 @@ for i in ['cba','CBA','PBA','pba']:
 #%% Plot impact of a specific sector and environmental extension
 
 f = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels')
-Results.to_csv('Results/'+Res_name+'_Fossil_Fuel_allocation - Case '+yea+'_'+sce+'_'+reg+'.csv')
+f.to_csv('Results/Fossil_Fuel_allocation - Case '+str(yea)+'_'+sce+'_'+reg+'.csv')
 
