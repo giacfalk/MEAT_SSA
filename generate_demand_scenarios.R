@@ -4,7 +4,7 @@
 ########################
 ##Giacomo Falchetta, Michel Noussan
 #Any question should be addressed to giacomo.falchetta@feem.it
-### Version: 12/05/19 ###
+### Version: 04/01/21 ###
 
 #Load required libraries
 library(ggplot2)
@@ -23,7 +23,7 @@ library(imputeTS)
 library(tidyr)
 
 #Set wd depending on which computer you are working
-setwd("D:\\Dropbox (FEEM)\\Meat Africa\\Repo\\meatSSA\\Data")
+setwd("D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo/meatSSA/Data")
 
 ###############
 ##Index##
@@ -306,7 +306,7 @@ ssps = merge(ssps, ssps_pop, by=c("Scenario", "Region", "variable"))
 ssps = ssps %>% group_by(Scenario, variable) %>% summarise(pcgdp=sum(pcgdp*share))
 
 #3.2 adjust unit of dollars (from 2005 to 2011 PPP per-capita GDP)
-adjfactor = wb(indicator = "PA.NUS.PPP", startdate = 2005, enddate = 2011)
+adjfactor = wb(indicator = "NY.GDP.DEFL.ZS", startdate = 2005, enddate = 2011, country = "USA")
 gdp = wb(indicator = "NY.GDP.MKTP.KD", startdate = 2005, enddate = 2011)
 
 ##
@@ -316,27 +316,37 @@ gdp = gdp[complete.cases(gdp$continent),]
 gdp = subset(gdp, gdp$continent == "Africa")
 gdp=subset(gdp, iso3c != "ATF" & iso3c != "EGY" & iso3c != "ESH"& iso3c != "ESP" & iso3c != "LBY" & iso3c != "MAR" & iso3c != "MYT" & iso3c != "SYC" & iso3c != "COM" & iso3c != "YEM" & iso3c != "TUN" & iso3c != "DZA" & iso3c != "SHN" & iso3c != "DJI" & iso3c != "STP")
 gdp = gdp %>%  group_by(date) %>% mutate(share = value / sum(value)) %>% ungroup()
-gdp = gdp %>% group_by(iso3c) %>% summarise(share=mean(share))
+gdp = gdp %>% group_by(iso3c) %>% dplyr::summarise(share=mean(share))
 
 ####
 
 adjfactor = adjfactor %>% dplyr::select(iso3c, date, value) %>% rename(adj=value)
 adjfactor = adjfactor %>% subset(date == 2011 | date == 2005) %>% group_by(iso3c) %>% summarise(adj= adj[1]/adj[2])  
-gdp = merge(gdp, adjfactor, by=c("iso3c"))
-gdp = gdp %>% dplyr::summarise(adjf = sum(adj*share, na.rm = TRUE)) 
+gdp = gdp %>% dplyr::summarise(adjf = sum(adjfactor$adj*share, na.rm = TRUE)) 
 gdp = gdp[1,1]
-ssps = ssps %>% mutate(pcgdp=pcgdp*gdp)
+ssps = ssps %>% mutate(pcgdp=pcgdp*gdp$adjf)
 
 ## add future religion
 
-religion_future <- read.csv("Religious_Composition_by_Country_2010-2050.csv")
+religion_future <- read.csv("Religious_Composition_by_Country_2010-2050.csv", stringsAsFactors = F)
 
-religion_future$ï..Year
+religion_future$ï..Year <-  as.POSIXct(as.character(religion_future$ï..Year), format="%Y")
+
+library(padr)
+religion_future<-(padr::pad(religion_future, interval="5 years"))
+
+religion_future <- religion_future %>%
+  arrange(ï..Year) %>%
+  mutate(christians_share = na.approx(christians_share), muslims_share = na.approx(muslims_share), nonrelig_share = na.approx(nonrelig_share), hindus_share = na.approx(hindus_share), buddists_share = na.approx(buddists_share), folk_share = na.approx(folk_share), other_share = na.approx(other_share), jews_share = na.approx(jews_share))
+
+religion_future$ï..Year <- lubridate::year(religion_future$ï..Year)
 
 ssps = merge(ssps, religion_future, by.y="ï..Year", by.x="variable", all=TRUE)
-  
+
 colnames(ssps)[3] <- "cgdppc"
 
+ssps <- filter(ssps, as.numeric(as.character(variable))<=2050)
+ssps$Region=NULL
 
 ##########
 #Design the scenarios
@@ -358,7 +368,7 @@ as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
 ##########
 ## calculate effect controlling for gdp and religion and clustering by country
-r <- read.csv("D:/Dropbox (FEEM)/Meat Africa/Repo/meatSSA/Data/WRP national data.csv")
+r <- read.csv("WRP national data.csv")
 
 r$christians_share = r$chrstangpct+r$chrstcatpct+r$chrstgenpct+r$chrstorthpct+r$chrstothrpct+r$chrstprotpct
 
@@ -376,44 +386,320 @@ r$folk_share = r$anmgenpct
 
 r$other_share = r$zorogenpct + r$sikhgenpct + r$shntgenpct + r$bahgenpct + r$taogenpct + r$jaingenpct + r$confgenpct + r$syncgenpct
 
-y <- merge(y, r, by.x=c("Code", "Year"), by.y=c("name", "year"), all=TRUE)
+#
+r$year <-  as.POSIXct(as.character(r$year), format="%Y")
+r<-(padr::pad(r, interval="year", group = "name"))
 
-###
-#Test with prices#
-###
+r <- r %>%
+  arrange(year) %>%
+  group_by(name) %>% 
+  mutate(christians_share = na.approx(christians_share), muslims_share = na.approx(muslims_share), nonrelig_share = na.approx(nonrelig_share), hindus_share = na.approx(hindus_share), buddists_share = na.approx(buddists_share), folk_share = na.approx(folk_share), other_share = na.approx(other_share), jews_share = na.approx(jews_share))
 
-prices <- read.csv('Prices_1991_today_meat_bycountry.csv')
-prices$ISO3 = countrycode(prices$Area, "country.name", "iso3c")
+r$year<- lubridate::year(r$year)
 
-prices <- dplyr::select(prices, ISO3, Year, Item, Value)
+y <- merge(y, r, by.x=c("Code", "Year"), by.y=c("name", "year"), all.x=T)
 
-prices = reshape(prices, idvar = c("ISO3", "Year"), timevar = "Item", direction = "wide")
+# add urbanisation
 
-y_prices =  merge(y, prices, by.x=c("Code", "Year"), by.y=c("ISO3", "Year"), all=TRUE)
+urbanisation <- readxl::read_xls("WUP2018-F02-Proportion_Urban.xls")
 
-formula<-"cbind(Beef.and.buffalo..kg., Mutton...goat..kg., Poultry..kg., Pigmeat..kg.) ~ cgdppc + christians_share + jews_share + muslims_share + nonrelig_share + hindus_share + buddists_share + folk_share + other_share + `Value.Meat, cattle` + `Value.Meat, chicken` + `Value.Meat, goat` + `Value.Meat, pig` + as.factor(Year)"  
+urbanisation <- reshape2::melt(urbanisation, 1, 2:22)
+urbanisation$Code <- countrycode::countrycode(urbanisation$country, 'country.name', 'iso3c')
 
-ols1<-lm(formula,data=y_prices)
-summary(ols1, robust=TRUE)
+colnames(urbanisation) <- c("Country", "Year", "urbanisation", "Code")
+
+urbanisation$Year <- as.numeric(as.character(urbanisation$Year))
+
+urbanisation$Year <- as.POSIXct(as.character(urbanisation$Year), format="%Y")
+
+library(padr)
+urbanisation<-(padr::pad(urbanisation, interval="year", group = "Code"))
+
+urbanisation <- urbanisation %>%
+  group_by(Code) %>%
+  arrange(Year) %>%
+  mutate(urbanisation = na.approx(urbanisation))
+
+urbanisation$Year <- lubridate::year(urbanisation$Year)
 
 
-###
+# 
+urbssa <- readxl::read_xls("WUP2018-F02-Proportion_Urban.xls")
+urbssa <- subset(urbssa, urbssa$country=="Sub-Saharan Africa")
+urbssa <- reshape2::melt(urbssa, 1, 2:22) %>% dplyr::select(-country)
+colnames(urbssa) <- c("variable", "urbanisation")
 
+ssps = merge(ssps, urbssa, by.y="variable", by.x="variable", all.x=T)
 
-y2 = y[complete.cases(y), ]
+y <- merge(y, urbanisation, by.x=c("Code", "Year"), by.y=c("Code", "Year"), all.x=TRUE)
+
+## 
+
+# meat prices historical
+
+old_prices <- read.csv("prices/old_prices.csv", stringsAsFactors = F)
+new_prices <- read.csv("prices/new_prices.csv", stringsAsFactors = F)
+
+old_prices <- dplyr::select(old_prices, Country, Item, Year, Value)
+new_prices <- dplyr::select(new_prices, Area, Item, Year, Value)
+
+colnames(new_prices) <- colnames(old_prices)
+
+prices <- rbind(old_prices, new_prices)
+
+prices$region <- countrycode::countrycode(prices$Country, 'country.name', 'iso3c')
+
+adjfactor = wb(indicator = "PA.NUS.ATLS", startdate = 1966, enddate = 2018)
+
+prices <- merge(prices, adjfactor, by.x=c("region", "Year"), by.y=c("iso3c", "date"), all.x=T)
+
+prices$deflated = prices$Value/prices$value
+
+prices <- prices %>% dplyr::select(region, Item, Year, deflated)
+
+prices$continent=countrycode::countrycode(prices$region, 'iso3c', 'gbd_region', custom_dict=state_dict, origin_regex=TRUE)
+
+prices <- prices %>% 
+  dplyr::group_by(continent, Item, Year) %>%
+  summarise(deflated=median(deflated, na.rm = T))
+
+prices <- prices %>%
+  dplyr::group_by(continent, Item) %>%
+  dplyr::mutate(deflated = (deflated/deflated[Year==2010])*100) 
+
+prices <- spread(prices, key = 2, value = 4)
+
+library(zoo)
+
+prices <- prices[order(prices$continent, prices$Year),]
+
+prices <- prices %>%
+  group_by(continent) %>%
+  mutate(`Meat live weight, cattle` = na.approx(`Meat live weight, cattle`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, chicken` = na.approx(`Meat live weight, chicken`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, goat` = na.approx(`Meat live weight, goat`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, pig` = na.approx(`Meat live weight, pig`, na.rm=FALSE, maxgap = Inf, rule = 2)) %>% 
+  filter(!is.na(continent)) 
+
+y <- merge(y, prices, by.x=c("continent", "Year"), by.y=c("continent", "Year"), all.x=TRUE)
+
+# agricultural producer price index as a control variable
+
+# past
+
+old_prices <- read.csv("prices/PricesArchive_E_All_Data.csv", stringsAsFactors = F)
+new_prices <- read.csv("prices/Prices_E_All_Data.csv", stringsAsFactors = F)
+
+old_prices <- dplyr::select(old_prices, Country, Item, Year, Value)
+
+new_prices <- reshape2::melt(new_prices, c(1:9), c(10:67))
+
+new_prices <- filter(new_prices, Months == "Annual value" & Element=="Producer Price Index (2014-2016 = 100)")
+
+new_prices <- dplyr::select(new_prices, Area, Item, variable, value)
+
+colnames(new_prices) <- colnames(old_prices)
+
+new_prices$Year <-as.character(new_prices$Year)
+
+new_prices$Year <- gsub("Y", "", new_prices$Year)
+
+prices <- rbind(old_prices, new_prices)
+
+prices$region <- countrycode::countrycode(prices$Country, 'country.name', 'iso3c')
+
+adjfactor = wb(indicator = "PA.NUS.ATLS", startdate = 1966, enddate = 2019)
+
+prices$iso <- countrycode::countrycode(prices$Country, "country.name", "iso3c")
+
+prices$Year <- as.numeric(prices$Year)
+
+prices <- merge(prices, adjfactor, by.x=c("iso", "Year"), by.y=c("iso3c", "date"), all.x=T)
+
+prices$deflated = as.numeric(prices$Value)/prices$value
+
+prices_crops <- filter(prices, Item=="Cereals, Total" | Item=="Cereals, nes")
+
+prices_crops$continent=countrycode::countrycode(prices_crops$region, 'iso3c', 'gbd_region', custom_dict=state_dict, origin_regex=TRUE)
+
+prices <- prices_crops %>% 
+  dplyr::group_by(continent, Item, Year) %>%
+  summarise(deflated=median(deflated, na.rm = T))
+
+prices <- prices[order(prices$continent, prices$Year),]
+
+prices <- prices %>%
+  group_by(continent) %>%
+  mutate(deflated = na.approx(deflated, na.rm=FALSE, maxgap = Inf, rule = 2))  %>% 
+  filter(!is.na(continent) & !is.na(Year) )
+
+prices <- prices %>%
+  dplyr::group_by(continent) %>%
+  dplyr::mutate(deflated = (deflated/deflated[Year==2010])*100) 
+
+y <- merge(y, prices, by.x=c("continent", "Year"), by.y=c("continent", "Year"), all.x=TRUE)
+
+# also add future prices for prediction
+# meat prices future
+
+prices_fut <- read.csv("prices/FOFA2050CountryData_Market.csv", stringsAsFactors = F)
+
+prices_fut <- prices_fut %>% dplyr::select(Indicator, Item, CountryCode, Scenario, Year, Value) %>% group_by(Year, CountryCode, Item, Scenario) %>% dplyr::summarise(Value[2]/Value[1])
+
+prices_fut <- filter(prices_fut, CountryCode=="XSSA" & (Item=="Pigmeat" | Item=="Poultry meat" | Item=="Sheep and goat meat" | Item=="Beef and veal"))
+
+prices_fut <- prices_fut %>% 
+  group_by(Item, Scenario) %>%
+  mutate(Value = (`Value[2]/Value[1]`/`Value[2]/Value[1]`[Year==2012])*100)
+
+prices_fut <- prices_fut %>%
+  group_by(Item, Year) %>%
+  summarise(Value = mean(Value, na.rm=T))
+
+prices_fut <- spread(prices_fut, key = 1, value = 3)
+colnames(prices_fut) <- c("Year", "Meat live weight, cattle", "Meat live weight, pig", "Meat live weight, chicken", "Meat live weight, goat")
+
+prices_fut$Year <-  as.POSIXct(as.character(prices_fut$Year ), format="%Y")
+
+prices_fut<-(padr::pad(prices_fut, interval="1 year"))
+
+prices_fut <- prices_fut %>%
+  mutate(`Meat live weight, cattle` = na.approx(`Meat live weight, cattle`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, chicken` = na.approx(`Meat live weight, chicken`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, goat` = na.approx(`Meat live weight, goat`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, pig` = na.approx(`Meat live weight, pig`, na.rm=FALSE, maxgap = Inf, rule = 2))
+
+prices_fut$Year  <- lubridate::year(prices_fut$Year )
+
+ssps = merge(ssps, prices_fut, by.y="Year", by.x="variable", all.x=T)
+
+ssps <- ssps %>%
+  group_by(Scenario) %>%
+  mutate(`Meat live weight, cattle` = na.approx(`Meat live weight, cattle`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, chicken` = na.approx(`Meat live weight, chicken`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, goat` = na.approx(`Meat live weight, goat`, na.rm=FALSE, maxgap = Inf, rule = 2), `Meat live weight, pig` = na.approx(`Meat live weight, pig`, na.rm=FALSE, maxgap = Inf, rule = 2)) 
+
+# 
+
+# library(tesseract)
+# eng <- tesseract("eng")
+# text <- tesseract::ocr("C:/Users/GIACOMO/Downloads/screencapture-app-powerbi-view-2020-12-14-15_15_41.pdf")
+# 
+# text2 <- strsplit(text, split = "\n")
+# 
+# text2 <- as.vector(do.call(rbind, text2))
+# 
+# write.csv(text2, "text.csv")
+
+future_price_index <- readxl::read_xlsx("prices/futurepriceindex.xlsx")
+
+future_price_index$`1` <- gsub("[^0-9.-]", "", future_price_index$`1`)
+
+future_price_index$`1` <- as.numeric(future_price_index$`1` )
+future_price_index$`1` <- ifelse(future_price_index$`1` >100, future_price_index$`1` /100, future_price_index$`1` )
+future_price_index <- group_by(future_price_index, Armenia, `2012`) %>% summarise(`1`=mean(`1`, na.rm=T))
+
+future_price_index$continent <- countrycode::countrycode(future_price_index$Armenia, 'country.name', 'continent')
+
+future_price_index <- dplyr::group_by(future_price_index, continent, `2012`) %>% summarise(deflated=mean(`1`, na.rm=T))
+
+future_price_index$variable = as.integer(future_price_index$`2012`)
+
+future_price_index <- filter(future_price_index, continent=="Africa")
+
+future_price_index$`2012` <-  as.POSIXct(as.character(future_price_index$`2012` ), format="%Y")
+
+future_price_index<-(padr::pad(future_price_index, interval="1 year"))
+
+future_price_index <- future_price_index %>%
+  mutate(deflated = na.approx(deflated, na.rm=FALSE, maxgap = Inf, rule = 2))
+
+future_price_index$variable  <- lubridate::year(future_price_index$`2012`)
+
+future_price_index <- dplyr::select(future_price_index, variable, deflated)
+
+future_price_index$continent=NULL
+
+ssps = merge(ssps, future_price_index, by="variable", all.x=T)
+
+######
+
+y2 = y %>% dplyr::select(cgdppc, Beef.and.buffalo..kg., christians_share, jews_share, muslims_share, nonrelig_share, hindus_share, buddists_share, folk_share, other_share, Pigmeat..kg., Poultry..kg., Mutton...goat..kg., continent, urbanisation, colnames(y)[103:106], deflated, continent, Year) %>% as.data.frame()
+
+# if all obs of that group are NA, then replace with global mean for that year
+
+# for (i in unique(y2$Year)){
+# y2 <- y2 %>%
+#   group_by(continent) %>%
+#   mutate(`Meat live weight, pig` := ifelse(sum(is.na(`Meat live weight, pig`))==n() & Year==i, mean(y2$`Meat live weight, pig`[y2$Year==i], na.rm=T), `Meat live weight, pig`)) %>% ungroup()
+# }
+# 
+
+y2 <- y2 %>%
+  group_by(Year) %>% 
+  mutate_at(vars(-group_cols()), function(x) replace(x, is.na(x), mean(x, na.rm = TRUE)))
+
+y2 = y2[complete.cases(y2), ]
 
 legend_continent <- unique(y2$continent)
 
-y2 = y2 %>% dplyr::select(cgdppc, Beef.and.buffalo..kg., christians_share, jews_share, muslims_share, nonrelig_share, hindus_share, buddists_share, folk_share, other_share, Pigmeat..kg., Poultry..kg., Mutton...goat..kg., continent) %>% mutate(continent= as.numeric(as.factor(continent))) %>% as.data.frame()
+y2 = y2 %>% group_by(continent) %>% mutate(random=runif(n()))
+
+y2 = y2 %>% mutate(group=as.factor(ifelse(random < 0.7, 'TRAINING', 'TESTING')))
+
+y2$continent = as.factor(y2$continent)
+y2$Year=NULL
 
 # Partition data
-splitSample <- sample(1:2, size=nrow(y2), prob=c(0.7,0.3), replace = TRUE)
-train.hex <- y2[splitSample==1,]
-test.hex <- y2[splitSample==2,]
+train.hex <- filter(y2, group=="TRAINING")
+test.hex <- filter(y2, group=="TESTING")
+
+train.hex$group=NULL
+test.hex$group=NULL
+train.hex$random=NULL
+test.hex$random=NULL
+
+train.hex <- as.data.frame(train.hex)
+test.hex <- as.data.frame(test.hex)
 
 library(randomForestSRC)
 pr = rfsrc(Multivar(Beef.and.buffalo..kg.,Pigmeat..kg.,Poultry..kg., Mutton...goat..kg.)~.,data = train.hex, importance=T)
 
+randomForestSRC::print.rfsrc(pr, outcome.target = "Beef.and.buffalo..kg.")
+randomForestSRC::print.rfsrc(pr, outcome.target = "Pigmeat..kg.")
+randomForestSRC::print.rfsrc(pr, outcome.target = "Poultry..kg.")
+randomForestSRC::print.rfsrc(pr, outcome.target = "Mutton...goat..kg.")
+
+#
+png("beef_stats.png", width = 750, height = 480, units = "px", bg = "white")
+plot(pr, m.target="Beef.and.buffalo..kg.")
+dev.off()
+
+png("pig_stats.png", width = 750, height = 480, units = "px", bg = "white")
+plot(pr, m.target="Pigmeat..kg.")
+dev.off()
+
+png("poultry_stats.png", width = 750, height = 480, units = "px", bg = "white")
+plot(pr, m.target="Poultry..kg.")
+dev.off()
+
+png("mutton_stats.png", width = 750, height = 480, units = "px", bg = "white")
+plot(pr, m.target="Mutton...goat..kg.")
+dev.off()
+
+#
+
+
+# plot elasticities
+source("D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo/meatSSA/method_ela.R")
+
+meattypes <- c("Beef.and.buffalo..kg.", "Poultry..kg.", "Pigmeat..kg.", "Mutton...goat..kg.")
+
+pp <- plot.variable.rfsrc(pr, xvar.names=c("cgdppc"), m.target=meattypes[1], partial = F, oob=T, sorted = TRUE)
+method_ela("cgdppc", 100000, "PPP per-capita GDP (2011 USD)", "Estimated global income \nelasticity of beef demand", 75000, paste0("el1", sub("\\..*", "", meattypes[1]),  ".png"), sub("\\..*", "", meattypes[1]))
+
+pp <- plot.variable.rfsrc(pr, xvar.names=c("cgdppc"), m.target=meattypes[2], partial = F, oob=T, sorted = TRUE)
+method_ela("cgdppc", 100000, "PPP per-capita GDP (2011 USD)", "Estimated global income \nelasticity of poultry demand", 75000, paste0("el1", sub("\\..*", "", meattypes[2]),  ".png"), sub("\\..*", "", meattypes[2]))
+
+pp <- plot.variable.rfsrc(pr, xvar.names=c("cgdppc"), m.target=meattypes[3], partial = F, oob=T, sorted = TRUE)
+method_ela("cgdppc", 100000, "PPP per-capita GDP (2011 USD)", "Estimated global income \nelasticity of pork demand", 75000, paste0("el1", sub("\\..*", "", meattypes[3]),  ".png"), sub("\\..*", "", meattypes[3]))
+
+pp <- plot.variable.rfsrc(pr, xvar.names=c("cgdppc"), m.target=meattypes[4], partial = F, oob=T, sorted = TRUE)
+method_ela("cgdppc", 100000, "PPP per-capita GDP (2011 USD)", "Estimated global income \nelasticity of mutton demand", 75000, paste0("el1", sub("\\..*", "", meattypes[4]),  ".png"), sub("\\..*", "", meattypes[4]))
+
+# Test model accuracy
 prediction <- predict.rfsrc(pr, test.hex)
 
 test.hex$Beef.and.buffalo..kg._forecasted = prediction$regrOutput$Beef.and.buffalo..kg.$predicted
@@ -436,63 +722,23 @@ ols1<-lm(formula,data=test.hex)
 summary(ols1, robust=TRUE)  
 
 ols1 <- outreg(ols1, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols1.csv")
+write.csv(ols1, "ols2.csv")
 
 formula<-"Poultry..kg. ~ Poultry..kg._forecasted"
 ols1<-lm(formula,data=test.hex)
 summary(ols1, robust=TRUE) 
 
 ols1 <- outreg(ols1, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols1.csv")
+write.csv(ols1, "ols3.csv")
 
 formula<-"Mutton...goat..kg. ~ Mutton...goat..kg._forecasted"
 ols1<-lm(formula,data=test.hex)
 summary(ols1, robust=TRUE) 
 
 ols1 <- outreg(ols1, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols1.csv")
-
-legend_continent
-
-## Comparison with OLS ##
-
-formula<-"cbind(Beef.and.buffalo..kg., Mutton...goat..kg., Poultry..kg., Pigmeat..kg.) ~ cgdppc + christians_share + jews_share + muslims_share + nonrelig_share + hindus_share + buddists_share + folk_share + other_share + as.factor(continent)"  
-
-ols1<-lm(formula,data=y2)
-summary(ols1, robust=TRUE)  
-
-uno <- lm(formula = Beef.and.buffalo..kg. ~ cgdppc + christians_share + 
-     jews_share + muslims_share + nonrelig_share + hindus_share + 
-     buddists_share + folk_share + other_share + as.factor(continent), 
-   data = y2)
-
-ols1 <- outreg(uno, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols1.csv")
-
-uno <- lm(formula = Pigmeat..kg. ~ cgdppc + christians_share + 
-            jews_share + muslims_share + nonrelig_share + hindus_share + 
-            buddists_share + folk_share + other_share + as.factor(continent), 
-          data = y2)
-
-ols1 <- outreg(uno, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols1.csv")
-
-uno <- lm(formula = Poultry..kg. ~ cgdppc + christians_share + 
-            jews_share + muslims_share + nonrelig_share + hindus_share + 
-            buddists_share + folk_share + other_share + as.factor(continent), 
-          data = y2)
-
-ols1 <- outreg(uno, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
-write.csv(ols1, "ols3.csv")
-
-uno <- lm(formula = Mutton...goat..kg. ~ cgdppc + christians_share + 
-            jews_share + muslims_share + nonrelig_share + hindus_share + 
-            buddists_share + folk_share + other_share + as.factor(continent), 
-          data = y2)
-
-ols1 <- outreg(uno, starred = 'se', pv = TRUE, tv = TRUE, se = FALSE)
 write.csv(ols1, "ols4.csv")
 
+#############
 
 # let's choose what regions to include
 # 1 central europe
@@ -507,20 +753,20 @@ funzione = function(X){
   for (i in SSPS_names){
   ssp2 = subset(ssps, ssps$Scenario==i)
   ssp2 = ssp2[complete.cases(ssp2), ]
-  ssp2$continent = X
+  ssp2$continent = as.factor(X)
   prediction <- predict.rfsrc(pr, ssp2)
   ssp2$beef = prediction$regrOutput$Beef.and.buffalo..kg.$predicted
   ssp2$poultry = prediction$regrOutput$Poultry..kg.$predicted
   ssp2$mutton = prediction$regrOutput$Mutton...goat..kg.$predicted
   ssp2$pork = prediction$regrOutput$Pigmeat..kg.$predicted
-  ssp2$Scenario_region = legend_continent[X]
+  ssp2$Scenario_region = ssp2$continent[1]
   ssp2$Scenario = i
   ssp_store[[i]] = ssp2
   } 
   ssp_store
 }
 
-lista = lapply(c(1, 11, 12, 15), funzione)
+lista = lapply(c("Central Europe", "East Asia", "Central Latin America", "North Africa and Middle East"), funzione)
 
 lista[[1]] = bind_rows(lista[[1]])
 lista[[2]] = bind_rows(lista[[2]])
@@ -556,14 +802,15 @@ ssps_pop$variable = as.numeric.factor(ssps_pop$variable)
   
 prova = merge(prova, ssps_pop, by.x=c("Year", "source"), by.y=c("variable", "Scenario"), all=TRUE)
 prova$pop = prova$value*1000000
-prova$beef_kg = prova$beef*prova$pop
-prova$poultry_kg = prova$poultry*prova$pop
-prova$mutton_kg = prova$mutton*prova$pop
-prova$pork_kg = prova$pork*prova$pop
 
+#
+prova$beef_kg_tot = prova$beef*prova$pop
+prova$poultry_kg_tot = prova$poultry*prova$pop
+prova$mutton_kg_tot = prova$mutton*prova$pop
+prova$pork_kg_tot = prova$pork*prova$pop
 
-# Export version
-prova2 = gather(prova, key="Type", value="Total_kg", beef_kg, poultry_kg, mutton_kg, pork_kg)
+# Export version aggregate
+prova2 = gather(prova, key="Type", value="Total_kg", beef_kg_tot, poultry_kg_tot, mutton_kg_tot, pork_kg_tot)
 prova2 = prova2[complete.cases(prova2),]
 prova2 = dplyr::select(prova2, Year, source, Scenario_region, pop, Type, Total_kg)
 prova2$total_Kt= prova2$Total_kg / 1000000
@@ -575,21 +822,69 @@ prova2$Type = gsub('_kg', '', prova2$Type )
 
 write.csv(prova2, "all_projections_2050_SSAfrica.csv", row.names = FALSE)
 
+# Export version per-capita
+prova3 = gather(prova, key="Type", value="Total_kg", beef, poultry, mutton, pork)
+prova3 = prova3[complete.cases(prova3),]
+prova3 = dplyr::select(prova3, Year, source, Scenario_region, pop, Type, Total_kg)
+colnames(prova3)[2] <- "SSP_Scenario"
+colnames(prova3)[4] <- "Population"
+
+prova3 <- prova3 %>% group_by(Year, Type, SSP_Scenario) %>% dplyr::summarise(Total_kg=mean(Total_kg))
+
+prova3$Type[prova3$Type=="beef"] <- "Beef and veal"
+prova3$Type[prova3$Type=="mutton"] <- "Sheep and goat meat"
+prova3$Type[prova3$Type=="poultry"] <- "Poultry meat"
+prova3$Type[prova3$Type=="pork"] <- "Pigmeat"
+
+per_capita = ggplot()+
+  theme_gray()+
+  ggtitle('Projected per-capita meat pathways')+
+  geom_line(data= filter(prova3, Year>=2020), aes(x=Year,y=Total_kg,color=SSP_Scenario, group= SSP_Scenario), size=1, alpha=1)+
+  facet_wrap(~Type)+
+  ylab('Per-capita consumption (kg)')+
+  scale_colour_brewer(name="SSP (ref. regions scenarios mean)", palette = "Set1")+
+  scale_x_continuous(limits=c(2020, 2050))+
+  theme(legend.position = "bottom", legend.direction = "horizontal")
+
+
+prova2 <- prova2 %>% group_by(Year, Type, SSP_Scenario) %>% dplyr::summarise(total_Kt=mean(total_Kt))
+
+prova2$Type[prova2$Type=="beef_tot"] <- "Beef and veal"
+prova2$Type[prova2$Type=="mutton_tot"] <- "Sheep and goat meat"
+prova2$Type[prova2$Type=="poultry_tot"] <- "Poultry meat"
+prova2$Type[prova2$Type=="pork_tot"] <- "Pigmeat"
+
+total = ggplot()+
+  ggtitle('Projected total meat consumption pathways')+
+  theme_gray()+
+  geom_line(data= filter(prova2, Year>=2020), aes(x=Year,y=total_Kt,color=SSP_Scenario, group= SSP_Scenario), size=1, alpha=1)+
+  facet_wrap(~Type)+
+  ylab('Regional consumption (Kt)')+
+  scale_colour_brewer(name="SSP (ref. regions mean)", palette = "Set1")+
+  scale_x_continuous(limits=c(2020, 2050))+
+  theme(legend.position = "bottom", legend.direction = "horizontal")
+
+
+plot_bind <- plot_grid(per_capita, total, ncol = 1, labels = "AUTO")
+
+ggsave(plot = plot_bind, device = "png", filename = "pathways.png", scale=1.5, width = 4, height = 5)
+
 ########
 # Compare results with FAO prediction from year 2018 report
 # Load FAO projections
-setwd('D:\\Dropbox (FEEM)\\Meat Africa\\Input-output')
-
-projections = readxl::read_excel("FOFA2050CountryData_Market.xlsx") %>% filter(Indicator == "Commodity balances, volume" & (Item == "Beef and veal" | Item == "Poultry meat" | Item == "Pigmeat" | Item == "Sheep and goat meat") & Element =="Food use" & Region =="Sub-Saharan Africa")
+projections = read.csv("FOFA2050CountryData_Market_q.csv") %>% filter(Indicator == "Commodity balances, volume" & (Item == "Beef and veal" | Item == "Poultry meat" | Item == "Pigmeat" | Item == "Sheep and goat meat") & Element =="Food use" & Region =="Sub-Saharan Africa")
 
 projections = projections %>% group_by(Year, Scenario, Item) %>% summarise(Value=sum(Value))
 
 projections$Source = "FAO"
 
 # Load our projections
-output <- read.csv("all_projections_2050_SSAfrica.csv")
+output <- read.csv("all_projections_2050_SSAfrica.csv", stringsAsFactors = F)
 
+#
 output$Total_kg=NULL
+
+output$Scenario_region <- ifelse(output$Scenario_region=="Central Europe", "CEU", ifelse(output$Scenario_region=="East Asia", "EASIA", ifelse(output$Scenario_region=="Central Latin America", "CLAM", ifelse(output$Scenario_region=="North Africa and Middle East", "NMENA", NA ))))
 
 output$SSP_Scenario = paste0(output$SSP_Scenario, output$Scenario_region)
 output$Scenario_region = NULL
@@ -601,10 +896,10 @@ colnames(output) <- c("Year", "Scenario", "Population", "Item", "Value","Source"
 output$Item = as.character(output$Item)
 output$Scenario = as.character(output$Scenario)
 
-output$Item[output$Item=="beef"] <- "Beef and veal"
-output$Item[output$Item=="mutton"] <- "Sheep and goat meat"
-output$Item[output$Item=="poultry"] <- "Poultry meat"
-output$Item[output$Item=="pork"] <- "Pigmeat"
+output$Item[output$Item=="beef_tot"] <- "Beef and veal"
+output$Item[output$Item=="mutton_tot"] <- "Sheep and goat meat"
+output$Item[output$Item=="poultry_tot"] <- "Poultry meat"
+output$Item[output$Item=="pork_tot"] <- "Pigmeat"
 
 bind = dplyr::bind_rows(output, projections)
 
@@ -628,18 +923,48 @@ n <- 23
 qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
 col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
 
+bind$Year <-  as.POSIXct(as.character(bind$Year), format="%Y")
+
+bind<-(padr::pad(bind, interval="1 year", group = c("Scenario", "Source", "Item")))
+
+bind <- bind %>%
+  group_by(Scenario, Source, Item) %>% 
+  arrange(Year) %>%
+  mutate(Value = na.approx(Value))
+
+bind$Year  <- lubridate::year(bind$Year )
 
 comparison = ggplot()+
   ggtitle('Consumption pathways comparison')+
-  geom_line(data= bind, aes(x=Year,y=Value,color=Scenario, group=Scenario, linetype=Source), size=1, alpha=1)+
+  geom_line(data= filter(bind, Year>=2020), aes(x=Year,y=Value,color=Scenario, group=Scenario, linetype=Source), size=1, alpha=1)+
   facet_wrap(~Item)+
   ylab('Total consumption (Kt)')+
   scale_colour_manual(name="Scenario", values = col_vector)+
   scale_linetype_discrete(name="Source")+
-  scale_x_continuous(limits=c(2010, 2050))+
-  theme(legend.position = "bottom", legend.direction = "vertical")+theme_Publication()
+  scale_x_continuous(limits=c(2020, 2050))+
+  theme(legend.position = "bottom", legend.direction = "vertical")
 
-ggsave("comparison.png", plot=comparison, device="png", height = 40, width = 40, scale=0.2)
+ggsave("comparison1.png", plot=comparison, device="png", height = 40, width = 40, scale=0.2)
+
+#
+bind$Scenario <- ifelse(grepl("SSP", bind$Scenario), substr(bind$Scenario, 5, nchar(bind$Scenario)), bind$Scenario)
+#bind$Scenario <- ifelse(grepl("SSP", bind$Scenario), substr(bind$Scenario, 1, 4), bind$Scenario)
+
+bind <- bind %>%
+  group_by(Scenario, Item, Year, Source) %>% 
+  summarise(Value = mean(Value))
+
+comparison = ggplot()+
+  ggtitle('Consumption pathways comparison')+
+  geom_line(data= filter(bind, Year>=2020), aes(x=Year,y=Value,color=Scenario, group=Scenario, linetype=Source), size=1, alpha=1)+
+  facet_wrap(~Item)+
+  ylab('Total consumption (Kt)')+
+  scale_colour_manual(name="Scenario (mean of SSPs 1-5 for each scenario)", values = col_vector[8:15])+
+  scale_linetype_discrete(name="Source")+
+  scale_x_continuous(limits=c(2020, 2050))+
+  theme(legend.position = "bottom", legend.direction = "vertical")
+
+ggsave("comparison2.png", plot=comparison, device="png", height = 40, width = 40, scale=0.2)
 
 #ggsave("SSP2_all.png", plot = total_output_smoothed_SSP2, device = "png", width = 40, height = 30, units = "cm", scale=0.4)
 

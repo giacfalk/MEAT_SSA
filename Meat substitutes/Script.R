@@ -17,9 +17,9 @@ dataset <- tidyr::gather(dataset, "Year", "Value", 4:7)
 
 dataset = subset(dataset, dataset$Impact!="Water Cons. Green [BCM]")
 
-dataset$Region[dataset$Region=="Median"] <- "Baseline"
+dataset <- dataset %>% filter(Year==2050) %>% filter(Impact=="Fossil Fuels [EJ]" | Impact=="GHG [GtonCO2_eq]" | Impact=="Land [Mkm2]" | Impact=="Eutrop. [MtonPO4_eq]" | Impact=="Water Cons. Blue [BCM]")
 
-dataset <- dataset %>% filter(Year==2050)
+#dataset$Region[dataset$Region=="Median"] <- "Baseline"
 
 # merge with consumption numbers
 
@@ -58,6 +58,8 @@ dataset = merge(dataset2, dataset3, by="percentile", all.x = T)
 dataset$Type = as.character(dataset$Type)
 
 dataset$value_alt = NA
+
+dataset$Type <- gsub("_tot", "", dataset$Type)
 
 #water#
 dataset$value_alt = ifelse(dataset$Type == "beef" & dataset$Adoption==10 & dataset$Impact=="Water Cons. Blue [BCM]", dataset$value.x*0.9 + (mean(impacts$LCA_l_bluewater_per_kg[2:7])*mean(impacts$prot_equiv_factor[2:7])*mean(dataset$value.y)*0.1)*1e-12, dataset$value_alt)
@@ -173,23 +175,25 @@ dataset_summarised = dataset %>% group_by(percentile, Impact, Adoption) %>% summ
 library(reshape2)
 dataset_summarised = gather(dataset_summarised, "type", "value_impact", c(4,5))
 
-dataset_summarised$type <- ifelse(dataset_summarised$type=="value.x", "Baseline", "Subst. adoption")
+dataset_summarised$type <- ifelse(dataset_summarised$type=="value.x", "Baseline (median)", "Subst. adoption")
 
 dataset_summarised = subset(dataset_summarised, dataset_summarised$Impact!="Electricity [TWh]")
+
+dataset_summarised$Adoption <- ifelse(dataset_summarised$type=="Baseline", 0, dataset_summarised$Adoption)
 
 ggplot(dataset_summarised, aes(x=as.factor(Adoption/100), y=value_impact, fill=type))+
   geom_boxplot(alpha=0.75)+ 
   facet_wrap(~Impact, scales = "free_y")+
   xlab("Substitutes adoption rate")+
   ylab("Impact specfic unit")+
-  scale_x_discrete(labels = c("10%", "25%", "50%"))+
-  ggtitle("Environmental benefit of meat substitutes adoption (grams of protein equivalent, year 2050)")+
+  scale_x_discrete(labels = c("0%", "10%", "25%", "50%"))+
+  ggtitle("Environmental impact change from meat substitutes adoption \n(grams of protein equivalent, year 2050)")+
   scale_fill_discrete(name="Scenario")+
   theme(legend.position = c(0.85, 0.2))
 
 ggsave("substitutes.png", last_plot(), device = "png", scale=1.25)
 
-dataset_summarised %>% filter(Adoption==50 & percentile==50) %>% group_by(Impact) %>% summarise(value=value_impact[1]/value_impact[2])
+dataset_summarised %>% filter(Adoption==25 & percentile==50) %>% group_by(Impact) %>% summarise(value=value_impact[1]/value_impact[2])
 
 ### 
 

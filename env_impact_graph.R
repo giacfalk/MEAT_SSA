@@ -6,11 +6,11 @@ setwd('D:/OneDrive - FONDAZIONE ENI ENRICO MATTEI/Current papers/MEAT/Repo/meatS
 
 dataset <- tibble()
 
-for(i in c("tot","cow","pig","pou")) {
+for(i in c("tot")){#,"cow","pig","pou")) {
 
 temp <- read_csv(paste0("Results/Final_results_",i,".csv"))
-names(temp)[c(1:4)] <- c("Impact","Region","SSP","Approach")
-temp <- gather(temp, "Year", "Value", 5:8) %>% filter(Approach=="baseline") %>% dplyr::select(-Approach) %>% mutate(Type=i)
+names(temp)[c(1:3)] <- c("Impact","Region","SSP")
+temp <- gather(temp, "Year", "Value", 4:7) %>% mutate(Type=i)
 
 dataset <- bind_rows(dataset,temp)
 }
@@ -30,21 +30,21 @@ dataset$Impact <- factor(dataset$Impact,
 group_by(dataset, Impact) %>% filter(Year==2050 & Type=="tot") %>% dplyr::summarise(min=min(Value, na.rm = T), max=max(Value, na.rm = T), median=median(Value, na.rm = T))
 
 p1 <- ggplot(dataset %>% filter(Impact != "Electricity~(TWh)" & Type=="tot"))+
-  geom_point(aes(y=Value,x=Year,color=Region),size=5,alpha=0.6,shape=18)+
-  geom_line(aes(y=Value,x=Year,color=Region,group=interaction(SSP,Region)),size=5,alpha=0.1)+
+  geom_point(aes(y=Value,x=Year,color=Region),size=3,alpha=0.6,shape=18)+
+  geom_line(aes(y=Value,x=Year,color=Region,group=interaction(SSP,Region)),size=3,alpha=0.1)+
   #geom_point(data = dataset %>%  filter(Impact != "Electricity [TWh]") %>% group_by(Year,Impact) %>%
   #             summarize(median=median(Value)) %>% ungroup(),
   #           aes(y=median,x=Year, shape="Median"),color="Black",size=5)+
   geom_line(data = dataset %>%  filter(Impact != "Electricity~(TWh)" & Type=="tot") %>% group_by(Year,Impact) %>%
                summarize(median=median(Value)) %>% ungroup(),
-             aes(y=median,x=Year,group=Impact,linetype="Median"),color="Black",size=1)+
+             aes(y=median,x=Year,group=Impact,linetype="Median"),color="Black",size=2.5)+
   facet_wrap(~Impact,scales = "free_y",labeller = label_parsed)+
   scale_color_brewer(name="Demand and tech.\nconvergence variant",palette = "Set1")+
   scale_linetype_manual(name="",values = "solid")+
   labs(x="",y="")+
   theme(legend.position = c(0.85, 0.2))
 
-ggsave("impacts.png", p1, device = "png", dpi = 300, width = 3,height = 2, scale=3)
+ggsave("impacts.png", p1, device = "png", dpi = 300, width = 3,height = 2, scale=2.3)
 
 
 # Plots per type of meat

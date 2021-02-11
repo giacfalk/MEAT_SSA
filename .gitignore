@@ -10,3 +10,4 @@ impacts3.png
 list(categories = c(6, 1, 4, 5, 6, 1, 4, 5), type = c(2, 2, 2, 2, 1, 1, 1, 1), value = c(2.3, 24, 0.75, 2.3, 12.5866439618508, 40.6201290802833, 0.835367776952659, 1.16275028181257))
 plot_current_future_impacts.xlsx
 substitutes.png
+Data/prices/FOFA2050CountryData_Market.csv
