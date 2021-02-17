@@ -23,7 +23,7 @@ World.calc_all(['w','m','M','f','F']) # Main matrices (z,v and e) already comput
 
 Res_name = 'Total' # Name your result file
 
-Meat = ['Products of meat cattle','Products of meat pigs','Products of meat poultry']
+Meat = ['Products of meat cattle','Products of meat pigs','Products of meat poultry','Fish products']
 Years = [2020, 2030, 2040, 2050]
 Scenarios = ['SSP1', 'SSP2','SSP3','SSP4','SSP5']
 Regions = ['Central Europe', 'Central Latin America', 'East Asia', 'North Africa and Middle East'] # add 'Median' when updated
@@ -52,7 +52,7 @@ Moisture = pd.read_excel('Inputs/Support information for MRIO/Moisture_content.x
 rate = pd.read_excel('Inputs/Support information for MRIO/Scenarios.xlsx', sheet_name='Change rates', index_col=[0]) # Rate of increase in environmental efficiency
 
 #%% Plotting baseline
-Reg_comp = ['Italy','Germany','Japan','USA','Brazil','RoW Africa']
+Reg_comp = ['Italy','Germany','Japan','USA','France','RoW Africa']
 
 for i in ['cba','CBA','PBA','pba']:
     MARIO.plot_footprints(World, i, Extensions, Reg_comp, Meat, project_name='/Impacts/Baseline_')
@@ -168,6 +168,10 @@ for i in ['cba','CBA','PBA','pba']:
  
 #%% Plot impact of a specific sector and environmental extension
 
-f = LUIGI.assess_impact(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels')
-f.to_csv('Results/Allocation of total Fossil Fuel [GJ] - Case '+str(yea)+'_'+sce+'_'+reg+'.csv')
+tr = LUIGI.res_allocation(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels')
+f = LUIGI.res_allocation(AM,Reference,agg_path=r'Aggregations/Fossil_Fuels.xlsx',ext='Fossil Fuels',sec='Extraction of fossil fuels').stack().unstack(level=1)/(10**6)
+f.to_csv('Results/Allocation of total Fossil Fuel [PJ] - Case '+str(yea)+'_'+sce+'_'+reg+'.csv')
 
+#%%
+
+Res = pd.concat([])

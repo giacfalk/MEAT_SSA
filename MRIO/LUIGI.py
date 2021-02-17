@@ -130,7 +130,7 @@ def plot_results(result_file_name):
     fig.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
     fig.write_html(r'Results/'+result_file_name+'_plot.html')
 
-def assess_impact(Case, Ref, agg_path, sec, levels=['Sector','Region'], ext=''):
+def res_allocation(Case, Ref, agg_path, sec, levels=['Sector','Region'], ext=''):
     import MARIO
     import copy
     import pandas as pd
@@ -141,6 +141,8 @@ def assess_impact(Case, Ref, agg_path, sec, levels=['Sector','Region'], ext=''):
     Delta.E = MARIO.calc_E(Delta.e, Delta.X) # The main matrices are calculated before aggregating
     Delta.F = MARIO.calc_F(MARIO.calc_f(Delta.e, MARIO.calc_w(Delta.z)), Delta.Y.sum(axis=1))
     Delta.Z = Case.Z-Ref.Z.values
+    
+    print(Delta.Y)
     
     # Reindexing before aggregation
     new_sec_index = list(pd.read_excel(agg_path, sheet_name=levels[0]).iloc[:,1])
@@ -166,8 +168,6 @@ def assess_impact(Case, Ref, agg_path, sec, levels=['Sector','Region'], ext=''):
     imp = pd.concat([deltaE,deltaIBA,deltaF], axis=1)
     imp.columns = ['PBA','IBA','CBA']
     
-    return imp
-    
-    
+    return imp,Delta.b.loc[(slice(None),sec),:].T,Delta.E.loc[ext,(slice(None),sec)]
     
     
